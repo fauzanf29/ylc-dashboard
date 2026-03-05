@@ -18,7 +18,6 @@ export async function GET(req: Request) {
     const sheets = await initSheets();
     const spreadsheetId = process.env.GOOGLE_SHEETS_ID;
 
-    // Ambil data Penjualan, Pengeluaran, dan Absensi
     const [salesRes, expenseRes, absensiRes] = await Promise.all([
       sheets.spreadsheets.values.get({ spreadsheetId, range: 'Log_Penjualan!A2:F' }),
       sheets.spreadsheets.values.get({ spreadsheetId, range: 'Log_Pengeluaran!A2:F' }),
@@ -29,35 +28,26 @@ export async function GET(req: Request) {
     const expenseRows = expenseRes.data.values || [];
     const absensiRows = absensiRes.data.values || [];
 
-    // --- HITUNG TOTAL KAS (GLOBAL - TIDAK TERPENGARUH WEEK) ---
+    // --- HITUNG TOTAL KAS GLOBAL ---
     let globalBruto = 0;
     salesRows.forEach(row => globalBruto += (parseInt(row[5]?.toString().replace(/[^0-9]/g, "")) || 0));
     let globalExpense = 0;
     expenseRows.forEach(row => globalExpense += (parseInt(row[5]?.toString().replace(/[^0-9]/g, "")) || 0));
     const totalKasGlobal = (globalBruto * 0.8) - globalExpense;
 
-    // --- HITUNG STATS FILTERED (TERGANTUNG WEEK) ---
+    // --- STATE UNTUK FILTER MINGGUAN ---
     let weekBruto = 0;
+    let weekModal = 0;
     let weekExpense = 0;
     const staffStats: any = {};
+    const itemSalesStats: any = {};
+    const expensesList: any[] = [];
 
-    salesRows.forEach(row => {
-      if (row[1] === targetWeek) {
-        weekBruto += (parseInt(row[5]?.toString().replace(/[^0-9]/g, "")) || 0);
-      }
-    });
-
-    expenseRows.forEach(row => {
-      if (row[1] === targetWeek) {
-        weekExpense += (parseInt(row[5]?.toString().replace(/[^0-9]/g, "")) || 0);
-      }
-    });
-
-    // --- HITUNG JAM KERJA UNTUK LEADERBOARD (FILTERED BY WEEK) ---
+    // --- PROSES ABSENSI ---
     absensiRows.forEach(row => {
       const week = row[1];
       const name = row[2];
-      const durationStr = row[5] || "0"; // Contoh "2.50 Jam"
+      const durationStr = row[5] || "0"; 
       const hours = parseFloat(durationStr.replace(" Jam", "")) || 0;
 
       if (week === targetWeek) {
@@ -66,24 +56,55 @@ export async function GET(req: Request) {
       }
     });
 
-    // Tambahkan data penjualan ke staffStats
+    // --- PROSES PENJUALAN & ITEM TERLARIS ---
     salesRows.forEach(row => {
       if (row[1] === targetWeek) {
         const name = row[2];
+        const item = row[3];
+        const qty = parseInt(row[4]) || 0;
         const amount = parseInt(row[5]?.toString().replace(/[^0-9]/g, "")) || 0;
+        const modal = parseInt(row[6]?.toString().replace(/[^0-9]/g, "")) || 0; // Baca Kolom G
+
+        weekBruto += amount;
+        weekModal += modal;
+
         if (staffStats[name]) staffStats[name].totalSales += amount;
+
+        if (!itemSalesStats[item]) itemSalesStats[item] = { name: item, qty: 0, total: 0 };
+        itemSalesStats[item].qty += qty;
+        itemSalesStats[item].total += amount;
       }
     });
+
+    // --- PROSES PENGELUARAN ---
+    expenseRows.forEach(row => {
+      if (row[1] === targetWeek) {
+        const date = row[0];
+        const pic = row[2];
+        const kategori = row[3];
+        const keterangan = row[4];
+        const amount = parseInt(row[5]?.toString().replace(/[^0-9]/g, "")) || 0;
+
+        weekExpense += amount;
+        expensesList.push({ date, pic, kategori, keterangan, amount });
+      }
+    });
+
+    const setoran20 = weekBruto * 0.2; 
+    const netProfit = weekBruto - weekModal - setoran20 - weekExpense;
 
     return NextResponse.json({
       totalKasGlobal,
       finance: {
         bruto: weekBruto,
+        modal: weekModal,
         expense: weekExpense,
-        setoran: weekBruto * 0.2,
-        net: (weekBruto * 0.8) - weekExpense
+        setoran: setoran20,
+        net: netProfit
       },
-      leaderboard: Object.values(staffStats).sort((a: any, b: any) => b.totalSales - a.totalSales)
+      leaderboard: Object.values(staffStats).sort((a: any, b: any) => b.totalSales - a.totalSales),
+      itemSales: Object.values(itemSalesStats).sort((a: any, b: any) => b.qty - a.qty),
+      expensesList: expensesList.reverse() // Dibalik agar yang terbaru di atas
     });
   } catch (error) {
     return NextResponse.json({ error: "Gagal memproses data" }, { status: 500 });

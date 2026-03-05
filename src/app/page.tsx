@@ -20,6 +20,7 @@ export default function Page() {
   const [salesData, setSalesData] = useState({ item: '', qty: 1 });
   const [isSalesSubmitting, setIsSalesSubmitting] = useState(false);
   const [todaySales, setTodaySales] = useState(0);
+  const [todayItems, setTodayItems] = useState<any[]>([]); // Menyimpan daftar barang laku
 
   // Management & Finance State
   const [mgmtStats, setMgmtStats] = useState<any>(null);
@@ -27,6 +28,30 @@ export default function Page() {
   const [isExpenseModalOpen, setIsExpenseModalOpen] = useState(false);
   const [expenseData, setExpenseData] = useState({ kategori: 'Operasional', keterangan: '', jumlah: 0 });
   const [isExpenseSubmitting, setIsExpenseSubmitting] = useState(false);
+  const [isSendingWebhook, setIsSendingWebhook] = useState(false);
+
+  const sendWebhookReport = async () => {
+    if (!mgmtStats) return alert("Data masih kosong!");
+    if (!confirm(`Kirim rekapitulasi ${selectedWeek} ke Discord Management?`)) return;
+    
+    setIsSendingWebhook(true);
+    try {
+      const res = await fetch('/api/management/webhook', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          week: selectedWeek, 
+          stats: mgmtStats,
+          sender: userNamaRP 
+        })
+      });
+      if (res.ok) alert("Laporan sukses terkirim ke Discord! 🚀");
+      else alert("Gagal mengirim laporan.");
+    } catch (error) {
+      alert("Error menghubungi server.");
+    }
+    setIsSendingWebhook(false);
+  };
 
   useEffect(() => {
     let interval: NodeJS.Timeout;
@@ -77,8 +102,19 @@ export default function Page() {
     );
   }
 
-  const userRole = (session?.user as any)?.role || 'staff'; 
-  const userNamaRP = (session?.user as any)?.namaRP || session?.user?.name || 'Unknown';
+  const userRole = (session?.user as any)?.role || 'unauthorized'; 
+  const userNamaRP = (session?.user as any)?.namaRP || 'Unknown Personnel';
+  if (userRole === 'unauthorized') {
+    return (
+      <div className="min-h-screen bg-darkBg text-white flex flex-col items-center justify-center p-6 text-center">
+        <div className="bg-cardBg border border-red-600 p-10 rounded-3xl shadow-[0_0_50px_rgba(220,38,38,0.2)]">
+          <h1 className="text-4xl font-black text-red-600 mb-4 uppercase italic">Access Revoked</h1>
+          <p className="text-gray-400 mb-8">Discord ID Anda tidak terdaftar di database Y Luxury Club.<br/>Silakan hubungi Management untuk pendaftaran.</p>
+          <button onClick={() => signOut()} className="bg-red-600 px-8 py-3 rounded-xl font-bold uppercase tracking-widest">Logout</button>
+        </div>
+      </div>
+    );
+  }
 
   const handleAbsensi = async () => {
     const action = isCheckedIn ? 'checkout' : 'checkin';
@@ -113,16 +149,28 @@ export default function Page() {
       const data = await res.json();
       if (res.ok) {
         setTodaySales(prev => prev + data.totalHarga);
+
+        setTodayItems(prev => {
+          const existing = prev.find(i => i.item === salesData.item);
+          if (existing) {
+            return prev.map(i => i.item === salesData.item ? { ...i, qty: i.qty + salesData.qty } : i);
+          }
+          return [...prev, { item: salesData.item, qty: salesData.qty }];
+        });
+
         setIsSalesModalOpen(false);
+        
         if (userRole === 'management') fetchMgmtStats();
         alert("Penjualan Tercatat!");
       } else alert(data.error);
     } catch (error) { alert("Error!"); }
+
+    
     setIsSalesSubmitting(false);
   };
 
   const submitExpense = async () => {
-    if (expenseData.jumlah <= 0) return alert("Jumlah minimal Rp 1");
+    if (expenseData.jumlah <= 0) return alert("Jumlah minimal $ 1");
     setIsExpenseSubmitting(true);
     try {
       const res = await fetch('/api/management/expense', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...expenseData, userName: userNamaRP }) });
@@ -143,12 +191,12 @@ export default function Page() {
       <header className="flex justify-between items-center p-6 border-b border-gray-800 bg-cardBg sticky top-0 z-40">
         <div className="flex items-center gap-6">
           <div className="flex items-center gap-4">
-            <div className="bg-burgundy text-white font-bold p-2 rounded-lg text-sm tracking-widest">YLC</div>
+            <div className="bg-burgundy text-white font-bold p-2 rounded-lg text-sm tracking-widest"></div>
             <div className="hidden md:block">
-              <h1 className="text-xl font-black italic tracking-wider leading-none">Y-CLUB <span className="text-burgundy">HQ</span></h1>
+              <h1 className="text-xl font-black italic tracking-wider leading-none">Y Luxury<span className="text-burgundy">Club</span></h1>
               {userRole === 'management' && (
                 <p className="text-[10px] text-green-500 font-bold tracking-tighter uppercase mt-1">
-                  Vault Balance: Rp {mgmtStats?.totalKasGlobal?.toLocaleString('id-ID') || 0}
+                  Vault Balance: $ {mgmtStats?.totalKasGlobal?.toLocaleString('id-ID') || 0}
                 </p>
               )}
             </div>
@@ -187,6 +235,15 @@ export default function Page() {
                   💸 Catat Pengeluaran
                 </button>
               )}
+              {userRole === 'management' && (
+                <button 
+                  onClick={sendWebhookReport} 
+                  disabled={isSendingWebhook}
+                  className="px-8 py-2.5 rounded-xl font-bold text-xs transition bg-[#5865F2] hover:bg-[#4752C4] text-white uppercase tracking-widest shadow-lg shadow-[#5865F2]/20 flex items-center gap-2"
+                >
+                  {isSendingWebhook ? 'Mengirim...' : '📢 Kirim Laporan'}
+                </button>
+              )}
             </div>
             <div className="flex items-center bg-cardBg border border-gray-800 rounded-xl px-5 py-2.5 shadow-inner">
                <span className="text-[10px] text-gray-500 font-bold mr-4 tracking-[0.2em] uppercase">Work Timer</span>
@@ -199,20 +256,20 @@ export default function Page() {
             <div className="space-y-8 animate-in fade-in duration-700">
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <div className="bg-cardBg border border-gray-800 p-6 rounded-2xl shadow-lg">
-                  <p className="text-[10px] text-gray-500 font-bold uppercase mb-2 tracking-widest">Total Omzet (Wk)</p>
-                  <p className="text-2xl font-black text-green-500">Rp {mgmtStats?.finance?.bruto?.toLocaleString('id-ID') || 0}</p>
+                  <p className="text-[10px] text-gray-500 font-bold uppercase mb-2 tracking-widest">Gross Profit (Wk)</p>
+                  <p className="text-2xl font-black text-green-500">$ {mgmtStats?.finance?.bruto?.toLocaleString('id-ID') || 0}</p>
                 </div>
                 <div className="bg-cardBg border border-gray-800 p-6 rounded-2xl shadow-lg border-l-4 border-l-red-600">
                   <p className="text-[10px] text-gray-500 font-bold uppercase mb-2 tracking-widest">Pengeluaran (Wk)</p>
-                  <p className="text-2xl font-black text-red-500">Rp {mgmtStats?.finance?.expense?.toLocaleString('id-ID') || 0}</p>
+                  <p className="text-2xl font-black text-red-500">$ {mgmtStats?.finance?.expense?.toLocaleString('id-ID') || 0}</p>
                 </div>
                 <div className="bg-cardBg border border-gray-800 p-6 rounded-2xl shadow-lg">
-                  <p className="text-[10px] text-gray-500 font-bold uppercase mb-2 tracking-widest">Setoran (20%)</p>
-                  <p className="text-2xl font-black text-yellow-500">Rp {mgmtStats?.finance?.setoran?.toLocaleString('id-ID') || 0}</p>
+                  <p className="text-[10px] text-gray-500 font-bold uppercase mb-2 tracking-widest">Potongan (20%)</p>
+                  <p className="text-2xl font-black text-yellow-500">$ {mgmtStats?.finance?.setoran?.toLocaleString('id-ID') || 0}</p>
                 </div>
                 <div className="bg-cardBg border border-burgundy/30 p-6 rounded-2xl shadow-xl bg-gradient-to-br from-cardBg to-burgundy/5">
                   <p className="text-[10px] text-burgundyLight font-bold uppercase mb-2 tracking-widest">Net (80% - Exp)</p>
-                  <p className="text-2xl font-black text-white">Rp {mgmtStats?.finance?.net?.toLocaleString('id-ID') || 0}</p>
+                  <p className="text-2xl font-black text-white">$ {mgmtStats?.finance?.net?.toLocaleString('id-ID') || 0}</p>
                 </div>
               </div>
 
@@ -232,14 +289,67 @@ export default function Page() {
                           <td className="p-4">{idx === 0 ? "🥇" : idx === 1 ? "🥈" : idx === 2 ? "🥉" : `#${idx + 1}`}</td>
                           <td className="p-4 font-bold uppercase">{staff.name}</td>
                           <td className="p-4 text-center font-mono text-burgundyLight">{staff.totalHours.toFixed(2)} Jam</td>
-                          <td className="p-4 text-right font-black text-green-500">Rp {staff.totalSales.toLocaleString('id-ID')}</td>
+                          <td className="p-4 text-right font-black text-green-500">$ {staff.totalSales.toLocaleString('id-ID')}</td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
                 </div>
+                {/* === TABEL BARU: ITEM TERLARIS & LOG PENGELUARAN === */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-8">
+                
+                {/* Tabel Item Terjual */}
+                <div className="bg-cardBg border border-gray-800 rounded-3xl overflow-hidden shadow-xl">
+                  <div className="p-4 border-b border-gray-800 bg-darkBg/50">
+                    <h3 className="font-black italic uppercase tracking-widest text-xs text-green-500">Top Items (Minggu Ini)</h3>
+                  </div>
+                  <div className="p-4 overflow-y-auto max-h-[300px]">
+                    <ul className="space-y-3">
+                      {!mgmtStats?.itemSales?.length ? (
+                        <p className="text-center text-[10px] text-gray-500 uppercase tracking-widest my-4">Belum ada penjualan</p>
+                      ) : (
+                        mgmtStats.itemSales.map((item: any, idx: number) => (
+                          <li key={idx} className="flex justify-between items-center border-b border-gray-800/50 pb-2">
+                            <span className="font-bold uppercase text-xs">{item.name}</span>
+                            <span className="bg-burgundy/20 text-burgundyLight px-3 py-1 rounded-full text-[10px] font-black">{item.qty} Pcs Terjual</span>
+                          </li>
+                        ))
+                      )}
+                    </ul>
+                  </div>
+                </div>
+
+                {/* Tabel Log Pengeluaran */}
+                <div className="bg-cardBg border border-gray-800 rounded-3xl overflow-hidden shadow-xl">
+                  <div className="p-4 border-b border-gray-800 bg-darkBg/50">
+                    <h3 className="font-black italic uppercase tracking-widest text-xs text-red-500">Log Pengeluaran</h3>
+                  </div>
+                  <div className="p-4 overflow-y-auto max-h-[300px]">
+                    <ul className="space-y-4">
+                      {!mgmtStats?.expensesList?.length ? (
+                        <p className="text-center text-[10px] text-gray-500 uppercase tracking-widest my-4">Nihil Pengeluaran</p>
+                      ) : (
+                        mgmtStats.expensesList.map((exp: any, idx: number) => (
+                          <li key={idx} className="border-b border-gray-800/50 pb-3">
+                            <div className="flex justify-between items-start mb-1">
+                              <span className="font-bold text-xs uppercase text-red-400">{exp.kategori}</span>
+                              <span className="font-black text-xs text-red-500">- $ {exp.amount.toLocaleString('id-ID')}</span>
+                            </div>
+                            <p className="text-[10px] text-gray-400 italic mb-1">{exp.keterangan}</p>
+                            <p className="text-[9px] text-gray-600 font-bold uppercase tracking-widest">Oleh: {exp.pic}</p>
+                          </li>
+                        ))
+                      )}
+                    </ul>
+                  </div>
+                </div>
+
+              </div>
+              {/* === END TABEL BARU === */}
               </div>
             </div>
+
+            
           )}
 
           {/* INVENTORY SECTION */}
@@ -262,7 +372,7 @@ export default function Page() {
                   {inventory.map((item, index) => (
                     <div key={index} className="p-5 rounded-2xl border bg-darkBg border-gray-800 hover:border-burgundy/50 group transition-all duration-500">
                       <div className="flex justify-between items-start mb-4">
-                        <div><p className="font-black italic text-lg uppercase group-hover:text-burgundyLight">{item.name}</p><p className="text-[10px] text-gray-500">Rp {item.price?.toLocaleString('id-ID')}</p></div>
+                        <div><p className="font-black italic text-lg uppercase group-hover:text-burgundyLight">{item.name}</p><p className="text-[10px] text-gray-500">$ {item.price?.toLocaleString('id-ID')}</p></div>
                         <span className={`text-[10px] px-3 py-1 rounded-full font-bold ${item.stock > 0 ? 'bg-burgundy/20 text-burgundy' : 'bg-red-900/30 text-red-500'}`}>{item.stock} QTY</span>
                       </div>
                       <div className="flex gap-2">
@@ -273,12 +383,35 @@ export default function Page() {
                   ))}
                 </div>
               </div>
-              <div className="bg-cardBg border border-gray-800 rounded-3xl p-8 shadow-xl">
-                <h3 className="text-xs text-gray-400 font-bold mb-8 uppercase italic border-l-2 border-yellow-600 pl-3">Kasir Analytics</h3>
-                <p className="text-[10px] text-gray-500 mb-1 uppercase font-bold">Sales Pribadi (Hari Ini)</p>
-                <p className="text-3xl font-black text-yellow-500 mb-8">Rp {todaySales.toLocaleString('id-ID')}</p>
-                <p className="text-[10px] text-gray-500 mb-1 uppercase font-bold">Durasi Shift</p>
-                <p className="text-xl font-mono font-bold tracking-widest">{formatTime(seconds)}</p>
+<div className="bg-cardBg border border-gray-800 rounded-3xl p-8 shadow-xl flex flex-col h-full">
+                <h3 className="text-xs text-gray-400 font-bold mb-6 uppercase italic border-l-2 border-yellow-600 pl-3 tracking-widest">Kasir Analytics</h3>
+                
+                <div className="mb-6">
+                  <p className="text-[10px] text-gray-500 mb-1 uppercase font-bold tracking-tighter">Sales Pribadi (Shift Ini)</p>
+                  <p className="text-3xl font-black text-yellow-500 tracking-tight">$ {todaySales.toLocaleString('id-ID')}</p>
+                </div>
+
+                {/* --- DAFTAR BARANG YANG LAKU --- */}
+                <div className="flex-1 min-h-[120px] mb-6">
+                  <p className="text-[10px] text-gray-500 mb-3 uppercase font-bold tracking-tighter border-b border-gray-800 pb-2">Item Terjual</p>
+                  {todayItems.length === 0 ? (
+                    <p className="text-[10px] text-gray-600 italic">Belum ada penjualan di shift ini.</p>
+                  ) : (
+                    <ul className="space-y-2 overflow-y-auto max-h-[150px] pr-2">
+                      {todayItems.map((item, idx) => (
+                        <li key={idx} className="flex justify-between items-center border-b border-gray-800/50 pb-1">
+                          <span className="font-bold text-xs text-gray-300 uppercase">{item.item}</span>
+                          <span className="font-mono text-xs text-yellow-500 font-black">x{item.qty}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+
+                <div className="mt-auto pt-4 border-t border-gray-800">
+                  <p className="text-[10px] text-gray-500 mb-1 uppercase font-bold tracking-tighter">Durasi Shift</p>
+                  <p className="text-xl font-mono font-bold tracking-widest">{formatTime(seconds)}</p>
+                </div>
               </div>
             </div>
           )}
@@ -304,10 +437,10 @@ export default function Page() {
             <h2 className="text-xl font-black italic mb-6 uppercase text-center text-yellow-500">Catat Penjualan</h2>
             <div className="space-y-4 mb-8">
               <select value={salesData.item} onChange={(e) => setSalesData({...salesData, item: e.target.value})} className="bg-darkBg border border-gray-700 rounded-xl p-3 w-full font-bold outline-none">
-                {inventory.map((item, idx) => ( <option key={idx} value={item.name}>{item.name} - Rp {item.price?.toLocaleString('id-ID')}</option> ))}
+                {inventory.map((item, idx) => ( <option key={idx} value={item.name}>{item.name} - $ {item.price?.toLocaleString('id-ID')}</option> ))}
               </select>
               <input type="number" value={salesData.qty} onChange={(e) => setSalesData({...salesData, qty: parseInt(e.target.value) || 0})} className="bg-darkBg border border-gray-700 rounded-xl p-3 w-full text-center text-xl font-black outline-none" />
-              <div className="bg-yellow-600/10 p-4 rounded-xl text-center"><p className="text-2xl font-black text-yellow-500">Rp {((inventory.find(i => i.name === salesData.item)?.price || 0) * salesData.qty).toLocaleString('id-ID')}</p></div>
+              <div className="bg-yellow-600/10 p-4 rounded-xl text-center"><p className="text-2xl font-black text-yellow-500">$ {((inventory.find(i => i.name === salesData.item)?.price || 0) * salesData.qty).toLocaleString('id-ID')}</p></div>
             </div>
             <div className="flex gap-4"><button onClick={() => setIsSalesModalOpen(false)} className="flex-1 bg-gray-800 py-3.5 rounded-xl font-bold text-[10px] uppercase">Batal</button><button onClick={submitSales} className="flex-1 bg-yellow-600 py-3.5 rounded-xl font-bold text-[10px] uppercase">Konfirmasi</button></div>
           </div>
@@ -326,7 +459,7 @@ export default function Page() {
                 <option value="Bahan Baku">Bahan Baku</option>
               </select>
               <input type="text" placeholder="Keterangan" value={expenseData.keterangan} onChange={(e) => setExpenseData({...expenseData, keterangan: e.target.value})} className="bg-darkBg border border-gray-700 rounded-xl p-3 w-full font-bold text-sm outline-none" />
-              <input type="number" placeholder="Jumlah (Rp)" value={expenseData.jumlah} onChange={(e) => setExpenseData({...expenseData, jumlah: parseInt(e.target.value) || 0})} className="bg-darkBg border border-gray-700 rounded-xl p-3 w-full text-center text-xl font-black outline-none" />
+              <input type="number" placeholder="Jumlah ($)" value={expenseData.jumlah} onChange={(e) => setExpenseData({...expenseData, jumlah: parseInt(e.target.value) || 0})} className="bg-darkBg border border-gray-700 rounded-xl p-3 w-full text-center text-xl font-black outline-none" />
             </div>
             <div className="flex gap-4">
               <button onClick={() => setIsExpenseModalOpen(false)} className="flex-1 bg-gray-800 py-3.5 rounded-xl font-bold text-[10px] uppercase">Batal</button>

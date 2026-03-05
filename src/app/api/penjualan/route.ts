@@ -19,26 +19,31 @@ export async function POST(req: Request) {
     const sheets = await initSheets();
     const spreadsheetId = process.env.GOOGLE_SHEETS_ID;
 
-    // 1. Cek Harga di Inventory (Kita tetap butuh harganya)
+    // 1. Cek Harga Jual & Harga Modal di Inventory (Kolom A sampai F)
     const invRes = await sheets.spreadsheets.values.get({
       spreadsheetId,
-      range: 'Inventory!A:E',
+      range: 'Inventory!A:F',
     });
     const rows = invRes.data.values || [];
     
     let hargaSatuan = 0;
+    let hargaModalSatuan = 0;
 
     for (let i = 0; i < rows.length; i++) {
       if (rows[i][0] === itemName) {
-        hargaSatuan = parseInt(rows[i][4]) || 0; // Baca Kolom E
+        hargaSatuan = parseInt(rows[i][4]) || 0; // Kolom E (Harga Jual)
+        hargaModalSatuan = parseInt(rows[i][5]) || 0; // Kolom F (Harga Modal)
         break;
       }
     }
 
-    if (hargaSatuan === 0) return NextResponse.json({ error: "Harga belum disetting di Kolom E Inventory!" }, { status: 400 });
+    if (hargaSatuan === 0) return NextResponse.json({ error: "Harga jual belum disetting di Kolom E!" }, { status: 400 });
+    if (hargaModalSatuan === 0) return NextResponse.json({ error: "Harga modal belum disetting di Kolom F!" }, { status: 400 });
 
-    // 2. Hitung Total Pendapatan
+    // 2. Hitung Total Pendapatan & Total Modal
     const totalHarga = hargaSatuan * qty;
+    const totalModal = hargaModalSatuan * qty;
+    
     const now = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Jakarta" }));
     const timeStr = now.toLocaleString('id-ID');
 
@@ -46,13 +51,14 @@ export async function POST(req: Request) {
     const days = Math.floor((now.getTime() - startOfYear.getTime()) / (24 * 60 * 60 * 1000));
     const weekNumber = Math.ceil((now.getDay() + 1 + days) / 7);
 
-    // 3. HANYA Catat Duit Masuk ke Log_Penjualan (Tidak ubah stok)
+    // 3. Catat ke Log_Penjualan (Sampai Kolom G)
     await sheets.spreadsheets.values.append({
       spreadsheetId,
-      range: 'Log_Penjualan!A:F',
+      range: 'Log_Penjualan!A:G',
       valueInputOption: 'USER_ENTERED',
       requestBody: {
-        values: [[timeStr, `Minggu ${weekNumber}`, userName, itemName, qty, totalHarga]],
+        // [Waktu, Minggu, Nama, Item, Qty, Total Pendapatan, Total Modal]
+        values: [[timeStr, `Minggu ${weekNumber}`, userName, itemName, qty, totalHarga, totalModal]],
       },
     });
 
