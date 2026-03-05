@@ -90,13 +90,46 @@ export default function Page() {
 
   if (status === "loading") return <div className="min-h-screen bg-darkBg flex items-center justify-center"><div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-burgundy"></div></div>;
 
+// JIKA BELUM LOGIN (LANDING PAGE)
   if (!session) {
     return (
-      <div className="min-h-screen bg-darkBg flex items-center justify-center p-4">
-        <div className="bg-cardBg p-10 rounded-3xl border border-burgundy shadow-[0_0_50px_rgba(128,0,32,0.2)] text-center max-w-sm w-full">
-          <div className="bg-burgundy text-white font-bold w-16 h-16 flex items-center justify-center rounded-2xl mx-auto mb-6 text-2xl tracking-tighter">YLC</div>
-          <h1 className="text-3xl font-black text-white mb-2 italic tracking-widest uppercase">Y-Club <span className="text-burgundy">HQ</span></h1>
-          <button onClick={() => signIn('discord')} className="w-full bg-burgundy hover:bg-burgundyLight text-white py-4 mt-8 rounded-xl font-bold transition-all shadow-lg text-sm">LOGIN WITH DISCORD</button>
+      <div className="min-h-screen bg-darkBg flex items-center justify-center p-4 relative overflow-hidden">
+        
+        {/* --- BACKGROUND FOTO DENGAN BLUR & OVERLAY --- */}
+        <div className="absolute inset-0 z-0">
+          <img 
+            src="/ylc-bg.jpeg" 
+            alt="Y Luxury Club Background" 
+            className="w-full h-full object-cover blur-sm scale-110" 
+          />
+          <div className="absolute inset-0 bg-black/70 backdrop-blur-[2px]"></div>
+        </div>
+
+        {/* --- KOTAK LOGIN --- */}
+        <div className="bg-cardBg/90 backdrop-blur-lg p-10 rounded-3xl border border-burgundy shadow-[0_0_80px_rgba(128,0,32,0.4)] text-center max-w-sm w-full relative z-10 transition-all duration-1000 animate-in fade-in slide-in-from-bottom-12">
+          
+          <div className="bg-burgundy text-white font-bold w-20 h-20 flex items-center justify-center rounded-3xl mx-auto mb-8 text-3xl tracking-tighter shadow-xl border-4 border-burgundyLight/30">
+            YLC
+          </div>
+          
+          {/* INI BAGIAN YANG ERROR TADI, SUDAH DIPERBAIKI (</h1>) */}
+          <h1 className="text-4xl font-black text-white mb-2 italic tracking-widest uppercase text-shadow-lg">
+            Y Luxury <span className="text-burgundyLight">Club</span>
+          </h1>
+          
+          <p className="text-gray-400 text-xs font-semibold uppercase tracking-widest mb-10 border-b border-gray-800 pb-3">
+            Management & Staff Portal
+          </p>
+          
+          <button 
+            onClick={() => signIn('discord')} 
+            className="w-full bg-burgundy hover:bg-burgundyLight text-white py-4 mt-2 rounded-2xl font-black transition-all duration-300 shadow-lg text-sm uppercase tracking-widest flex items-center justify-center gap-3 active:scale-95 shadow-burgundy/30"
+          >
+            <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.08.08 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028 14.09 14.09 0 0 0 1.226-1.994.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.372.292a.077.077 0 0 1-.006.128 12.51 12.51 0 0 1-1.873.892.076.076 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.086 2.157 2.419 0 1.334-.955 2.419-2.157 2.419zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.086 2.157 2.419 0 1.334-.946 2.419-2.157 2.419z"/></svg>
+            LOGIN WITH DISCORD
+          </button>
+          
+          <p className="text-[10px] text-gray-500 mt-12 uppercase tracking-widest font-mono">Powered by Y Luxury Club © Los Santos 2026</p>
         </div>
       </div>
     );
