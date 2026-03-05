@@ -10,17 +10,23 @@ export default function Page() {
   const [inventory, setInventory] = useState<any[]>([]);
   const [isInventoryLoading, setIsInventoryLoading] = useState(true);
 
-  // Modal Ambil/Taruh
+  // Modal Inventory & Sales
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalData, setModalData] = useState({ item: '', action: 'ambil' as 'ambil' | 'taruh', maxStock: 0 });
   const [qtyInput, setQtyInput] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
-
-  // Modal Penjualan & Analytics Kasir
+  
   const [isSalesModalOpen, setIsSalesModalOpen] = useState(false);
   const [salesData, setSalesData] = useState({ item: '', qty: 1 });
   const [isSalesSubmitting, setIsSalesSubmitting] = useState(false);
   const [todaySales, setTodaySales] = useState(0);
+
+  // Management & Finance State
+  const [mgmtStats, setMgmtStats] = useState<any>(null);
+  const [selectedWeek, setSelectedWeek] = useState(`Minggu ${Math.ceil((new Date().getDate() + new Date(new Date().getFullYear(), 0, 1).getDay()) / 7)}`);
+  const [isExpenseModalOpen, setIsExpenseModalOpen] = useState(false);
+  const [expenseData, setExpenseData] = useState({ kategori: 'Operasional', keterangan: '', jumlah: 0 });
+  const [isExpenseSubmitting, setIsExpenseSubmitting] = useState(false);
 
   useEffect(() => {
     let interval: NodeJS.Timeout;
@@ -37,9 +43,19 @@ export default function Page() {
     setIsInventoryLoading(false);
   };
 
+  const fetchMgmtStats = async () => {
+    try {
+      const res = await fetch(`/api/management/stats?week=${selectedWeek}`);
+      if (res.ok) setMgmtStats(await res.json());
+    } catch (error) { console.error(error); }
+  };
+
   useEffect(() => {
-    if (session) fetchInventory();
-  }, [session]);
+    if (session) {
+      fetchInventory();
+      if ((session.user as any).role === 'management') fetchMgmtStats();
+    }
+  }, [session, selectedWeek]);
 
   const formatTime = (s: number) => {
     const hrs = Math.floor(s / 3600);
@@ -55,6 +71,11 @@ export default function Page() {
         <div className="bg-cardBg p-10 rounded-3xl border border-burgundy shadow-[0_0_50px_rgba(128,0,32,0.2)] text-center max-w-sm w-full">
           <div className="bg-burgundy text-white font-bold w-16 h-16 flex items-center justify-center rounded-2xl mx-auto mb-6 text-2xl tracking-tighter">YLC</div>
           <h1 className="text-3xl font-black text-white mb-2 italic tracking-widest uppercase">Y-Club <span className="text-burgundy">HQ</span></h1>
+          {userRole === 'management' && (
+        <p className="text-[10px] text-green-500 font-bold tracking-tighter uppercase mt-1">
+          Vault Balance: Rp {mgmtStats?.totalKasGlobal?.toLocaleString('id-ID') || 0}
+        </p>
+          )}
           <button onClick={() => signIn('discord')} className="w-full bg-burgundy hover:bg-burgundyLight text-white py-4 mt-8 rounded-xl font-bold transition-all shadow-lg">LOGIN WITH DISCORD</button>
         </div>
       </div>
@@ -75,14 +96,7 @@ export default function Page() {
     } catch (error) { alert("Error menghubungi server."); }
   };
 
-  const openModal = (item: any, action: 'ambil' | 'taruh') => {
-    setModalData({ item: item.name, action, maxStock: item.stock });
-    setQtyInput(1); setIsModalOpen(true);
-  };
-
   const submitTransaction = async () => {
-    if (qtyInput <= 0) return alert("Jumlah minimal 1!");
-    if (modalData.action === 'ambil' && qtyInput > modalData.maxStock) return alert("Stok di gudang tidak cukup!");
     setIsSubmitting(true);
     try {
       const res = await fetch('/api/inventory', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ itemName: modalData.item, action: modalData.action, userName: userNamaRP, quantity: qtyInput }) });
@@ -90,19 +104,13 @@ export default function Page() {
       if (res.ok) {
         setInventory(prev => prev.map(i => i.name === modalData.item ? { ...i, stock: data.newStock } : i));
         setIsModalOpen(false);
+        if (userRole === 'management') fetchMgmtStats();
       } else alert(data.error);
-    } catch (error) { alert("Gagal memproses transaksi!"); }
+    } catch (error) { alert("Error!"); }
     setIsSubmitting(false);
   };
 
-  const openSalesModal = () => {
-    if (inventory.length === 0) return alert("Inventory masih kosong/loading!");
-    setSalesData({ item: inventory[0].name, qty: 1 });
-    setIsSalesModalOpen(true);
-  };
-
   const submitSales = async () => {
-    if (salesData.qty <= 0) return alert("Minimal jual 1 item!");
     setIsSalesSubmitting(true);
     try {
       const res = await fetch('/api/penjualan', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ itemName: salesData.item, quantity: salesData.qty, userName: userNamaRP }) });
@@ -110,14 +118,34 @@ export default function Page() {
       if (res.ok) {
         setTodaySales(prev => prev + data.totalHarga);
         setIsSalesModalOpen(false);
-        alert(`Berhasil mencatat penjualan Rp ${data.totalHarga.toLocaleString('id-ID')}!`);
+        if (userRole === 'management') fetchMgmtStats();
+        alert("Penjualan Tercatat!");
       } else alert(data.error);
-    } catch (error) { alert("Gagal mencatat penjualan!"); }
+    } catch (error) { alert("Error!"); }
     setIsSalesSubmitting(false);
   };
 
+  const submitExpense = async () => {
+    if (expenseData.jumlah <= 0) return alert("Jumlah pengeluaran harus lebih dari 0!");
+    setIsExpenseSubmitting(true);
+    try {
+      const res = await fetch('/api/management/expense', { 
+        method: 'POST', 
+        headers: { 'Content-Type': 'application/json' }, 
+        body: JSON.stringify({ ...expenseData, userName: userNamaRP }) 
+      });
+      if (res.ok) {
+        setIsExpenseModalOpen(false);
+        setExpenseData({ kategori: 'Operasional', keterangan: '', jumlah: 0 });
+        fetchMgmtStats(); // Refresh angka di dashboard
+        alert("Pengeluaran Berhasil Dicatat!");
+      } else alert("Gagal mencatat pengeluaran");
+    } catch (error) { alert("Error Server!"); }
+    setIsExpenseSubmitting(false);
+  };
+
   return (
-    <div className="min-h-screen bg-darkBg text-white selection:bg-burgundy pb-20 relative">
+    <div className="min-h-screen bg-darkBg text-white selection:bg-burgundy pb-20 relative font-sans">
       <header className="flex justify-between items-center p-6 border-b border-gray-800 bg-cardBg sticky top-0 z-40">
         <div className="flex items-center gap-4">
           <div className="bg-burgundy text-white font-bold p-2 rounded-lg text-sm tracking-widest">YLC</div>
@@ -131,138 +159,195 @@ export default function Page() {
               <p className="text-[10px] text-burgundyLight font-bold italic tracking-tighter uppercase">{userRole}</p>
             </div>
           </div>
+          <button onClick={() => signOut()} className="text-gray-500 hover:text-white transition">✖</button>
         </div>
       </header>
 
       <main className="p-8 max-w-[1400px] mx-auto space-y-8">
+        {/* ACTION BAR */}
         <div className="flex flex-wrap gap-4 items-center justify-between">
           <div className="flex gap-3">
             {(userRole === 'staff' || userRole === 'management') && (
-              <button onClick={handleAbsensi} className={`px-8 py-2.5 rounded-xl font-bold text-xs transition shadow-lg uppercase tracking-widest ${isCheckedIn ? 'bg-red-600 hover:bg-red-500' : 'bg-green-600 hover:bg-green-500'}`}>
+              <button onClick={handleAbsensi} className={`px-8 py-2.5 rounded-xl font-bold text-xs transition shadow-lg uppercase tracking-widest ${isCheckedIn ? 'bg-red-600' : 'bg-green-600'}`}>
                 {isCheckedIn ? 'Check Out' : 'Check In'}
               </button>
             )}
-            
-            {/* Tombol Jualan hanya muncul kalau sudah Check In atau dia Management */}
             {(isCheckedIn || userRole === 'management') && (
-              <button onClick={openSalesModal} className="px-8 py-2.5 rounded-xl font-bold text-xs transition shadow-lg uppercase tracking-widest bg-yellow-600 hover:bg-yellow-500 shadow-yellow-900/20 text-white">
+              <button onClick={() => { setSalesData({ item: inventory[0]?.name, qty: 1 }); setIsSalesModalOpen(true); }} className="px-8 py-2.5 rounded-xl font-bold text-xs transition bg-yellow-600 hover:bg-yellow-500 text-white uppercase tracking-widest shadow-lg shadow-yellow-900/20">
                 $ Catat Penjualan
               </button>
             )}
+            {userRole === 'management' && (
+              <button onClick={() => setIsExpenseModalOpen(true)} className="px-8 py-2.5 rounded-xl font-bold text-xs transition bg-red-800 hover:bg-red-700 text-white uppercase tracking-widest shadow-lg shadow-red-900/20">
+                💸 Catat Pengeluaran
+              </button>
+            )}
           </div>
-          
           <div className="flex items-center bg-cardBg border border-gray-800 rounded-xl px-5 py-2.5 shadow-inner">
              <span className="text-[10px] text-gray-500 font-bold mr-4 tracking-[0.2em] uppercase">Work Timer</span>
              <span className={`font-mono text-lg font-bold ${isCheckedIn ? 'text-burgundyLight' : 'text-gray-600'}`}>{formatTime(seconds)}</span>
           </div>
         </div>
 
-        {/* === KONDISI SISTEM KEAMANAN TERKUNCI === */}
-        {!isCheckedIn && userRole === 'staff' ? (
+        {/* MANAGEMENT PANEL */}
+        {userRole === 'management' && (
+
           
-          <div className="bg-cardBg border border-gray-800 rounded-3xl p-12 flex flex-col items-center justify-center text-center shadow-xl min-h-[500px] animate-in fade-in zoom-in duration-500">
-            <div className="w-24 h-24 bg-burgundy/10 rounded-full flex items-center justify-center mb-6 border border-burgundy/30 shadow-[0_0_30px_rgba(128,0,32,0.2)]">
-               <svg className="w-12 h-12 text-burgundyLight" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
+          <div className="space-y-8 animate-in fade-in duration-700">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div className="bg-cardBg border border-gray-800 p-6 rounded-2xl shadow-lg">
+                <p className="text-[10px] text-gray-500 font-bold uppercase mb-2 tracking-widest">Total Omzet</p>
+                <p className="text-2xl font-black text-green-500">Rp {mgmtStats?.finance?.totalBruto?.toLocaleString('id-ID') || 0}</p>
+              </div>
+              <div className="bg-cardBg border border-gray-800 p-6 rounded-2xl shadow-lg border-l-4 border-l-red-600">
+                <p className="text-[10px] text-gray-500 font-bold uppercase mb-2 tracking-widest">Pengeluaran</p>
+                <p className="text-2xl font-black text-red-500">Rp {mgmtStats?.finance?.totalExpense?.toLocaleString('id-ID') || 0}</p>
+              </div>
+              <div className="bg-cardBg border border-gray-800 p-6 rounded-2xl shadow-lg">
+                <p className="text-[10px] text-gray-500 font-bold uppercase mb-2 tracking-widest">Setoran (20%)</p>
+                <p className="text-2xl font-black text-yellow-500">Rp {mgmtStats?.finance?.setoran?.toLocaleString('id-ID') || 0}</p>
+              </div>
+              <div className="bg-cardBg border border-burgundy/30 p-6 rounded-2xl shadow-xl bg-gradient-to-br from-cardBg to-burgundy/5">
+                <p className="text-[10px] text-burgundyLight font-bold uppercase mb-2 tracking-widest">Profit Bersih (80%)</p>
+                <p className="text-2xl font-black text-white">Rp {mgmtStats?.finance?.profitBersih?.toLocaleString('id-ID') || 0}</p>
+              </div>
             </div>
-            <h2 className="text-3xl font-black italic tracking-widest uppercase mb-4 text-white">Akses Terkunci</h2>
-            <p className="text-gray-400 max-w-md mx-auto mb-10 text-sm leading-relaxed">
-              Sistem keamanan Y Luxury Club mendeteksi Anda belum memulai shift kerja. Silakan <strong className="text-burgundyLight">Check In</strong> terlebih dahulu untuk membuka akses ke brankas Inventory dan sistem Kasir.
-            </p>
-            <button onClick={handleAbsensi} className="bg-green-600 hover:bg-green-500 text-white px-10 py-4 rounded-xl font-bold text-sm transition shadow-[0_0_30px_rgba(22,163,74,0.2)] uppercase tracking-widest hover:scale-105 transform animate-pulse">
-              Mulai Shift Sekarang
-            </button>
+
+            <div className="bg-cardBg border border-gray-800 rounded-3xl overflow-hidden shadow-xl">
+              <div className="p-6 border-b border-gray-800 flex justify-between items-center bg-darkBg/50">
+                <h3 className="font-black italic uppercase tracking-widest text-sm">Staff Leaderboard</h3>
+                <select value={selectedWeek} onChange={(e) => setSelectedWeek(e.target.value)} className="bg-darkBg border border-gray-700 rounded-lg px-4 py-2 text-xs font-bold text-burgundyLight outline-none">
+                  {[...Array(52)].map((_, i) => ( <option key={i} value={`Minggu ${i + 1}`}>Minggu {i + 1}</option> ))}
+                </select>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-left">
+                  <thead><tr className="text-[10px] text-gray-500 uppercase border-b border-gray-800"><th className="p-4">Rank</th><th className="p-4">Nama Staff</th><th className="p-4 text-center">Qty</th><th className="p-4 text-right">Total Penjualan</th></tr></thead>
+                  <tbody className="text-sm">
+                    {!mgmtStats?.leaderboard?.length ? (
+                      <tr><td colSpan={4} className="p-10 text-center text-gray-500 italic uppercase tracking-widest">Belum ada data di minggu ini</td></tr>
+                    ) : (
+                      mgmtStats.leaderboard.map((staff: any, idx: number) => (
+                        <tr key={idx} className="border-b border-gray-900/50 hover:bg-white/5 transition-colors">
+                          <td className="p-4">{idx === 0 ? "🥇" : idx === 1 ? "🥈" : idx === 2 ? "🥉" : `#${idx + 1}`}</td>
+                          <td className="p-4 font-bold uppercase tracking-tight">{staff.name}</td>
+                          <td className="p-4 text-center font-mono text-gray-400">{staff.totalItems} pcs</td>
+                          <td className="p-4 text-right font-black text-green-500">Rp {staff.totalSales.toLocaleString('id-ID')}</td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
           </div>
+        )}
 
+        {/* INVENTORY SECTION */}
+        {(!isCheckedIn && userRole === 'staff') ? (
+          <div className="bg-cardBg border border-gray-800 rounded-3xl p-12 flex flex-col items-center justify-center text-center shadow-xl min-h-[400px]">
+            <div className="w-20 h-20 bg-burgundy/10 rounded-full flex items-center justify-center mb-6 border border-burgundy/30 shadow-[0_0_30px_rgba(128,0,32,0.2)]">
+               <svg className="w-10 h-10 text-burgundyLight" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
+            </div>
+            <h2 className="text-2xl font-black italic uppercase mb-4">Akses Terkunci</h2>
+            <p className="text-gray-400 mb-8 text-sm leading-relaxed">Silakan <strong className="text-burgundyLight">Check In</strong> untuk membuka brankas Inventory.</p>
+            <button onClick={handleAbsensi} className="bg-green-600 text-white px-8 py-3 rounded-xl font-bold text-sm uppercase tracking-widest animate-pulse">Mulai Shift</button>
+          </div>
         ) : (
-
-          /* === TAMPILAN DASHBOARD TERBUKA === */
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
             <div className="lg:col-span-2 bg-cardBg border border-gray-800 rounded-3xl p-8 shadow-xl">
               <h3 className="text-xs text-gray-400 font-bold tracking-[0.3em] flex items-center gap-3 uppercase mb-8">
                  <span className="w-2 h-2 rounded-full bg-burgundy animate-pulse"></span> Live Inventory
               </h3>
-              {isInventoryLoading ? (
-                 <p className="text-center text-gray-500 text-sm animate-pulse">Memuat brankas minuman...</p>
-              ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {inventory.map((item, index) => (
-                    <div key={index} className="p-5 rounded-2xl border bg-darkBg border-gray-800 hover:border-burgundy/50 group transition-all duration-500">
-                      <div className="flex justify-between items-start mb-4">
-                        <div>
-                          <p className="font-black italic tracking-tighter text-lg uppercase group-hover:text-burgundyLight transition-colors">{item.name}</p>
-                          <p className="text-[10px] text-gray-500 font-bold tracking-widest">Rp {item.price?.toLocaleString('id-ID')}</p>
-                        </div>
-                        <span className={`text-[10px] px-3 py-1 rounded-full font-bold h-fit ${item.stock > 0 ? 'bg-burgundy/20 text-burgundy' : 'bg-red-900/30 text-red-500 animate-pulse'}`}>
-                          {item.stock} QTY
-                        </span>
-                      </div>
-                      <div className="flex gap-2">
-                        <button onClick={() => openModal(item, 'ambil')} className="flex-1 bg-gray-800 hover:bg-gray-700 py-2.5 rounded-xl font-bold text-[10px] tracking-widest transition uppercase">- Ambil</button>
-                        <button onClick={() => openModal(item, 'taruh')} className="flex-1 bg-burgundy/80 hover:bg-burgundy py-2.5 rounded-xl font-bold text-[10px] tracking-widest transition uppercase">+ Taruh</button>
-                      </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {isInventoryLoading ? (
+                  <p className="col-span-full text-center p-10 text-gray-500 animate-pulse uppercase tracking-widest">Menghubungi Brankas...</p>
+                ) : inventory.map((item, index) => (
+                  <div key={index} className="p-5 rounded-2xl border bg-darkBg border-gray-800 hover:border-burgundy/50 group transition-all duration-500">
+                    <div className="flex justify-between items-start mb-4">
+                      <div><p className="font-black italic text-lg uppercase group-hover:text-burgundyLight transition-colors">{item.name}</p><p className="text-[10px] text-gray-500 font-bold">Rp {item.price?.toLocaleString('id-ID')}</p></div>
+                      <span className={`text-[10px] px-3 py-1 rounded-full font-bold h-fit ${item.stock > 0 ? 'bg-burgundy/20 text-burgundy' : 'bg-red-900/30 text-red-500 animate-pulse'}`}>{item.stock} QTY</span>
                     </div>
-                  ))}
-                </div>
-              )}
+                    <div className="flex gap-2">
+                      <button onClick={() => { setModalData({ item: item.name, action: 'ambil', maxStock: item.stock }); setQtyInput(1); setIsModalOpen(true); }} className="flex-1 bg-gray-800 hover:bg-gray-700 py-2.5 rounded-xl font-bold text-[10px] uppercase transition tracking-widest">- Ambil</button>
+                      <button onClick={() => { setModalData({ item: item.name, action: 'taruh', maxStock: item.stock }); setQtyInput(1); setIsModalOpen(true); }} className="flex-1 bg-burgundy/80 hover:bg-burgundy py-2.5 rounded-xl font-bold text-[10px] uppercase transition tracking-widest">+ Taruh</button>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
-            
-            <div className="bg-cardBg border border-gray-800 rounded-3xl p-8 shadow-xl relative overflow-hidden">
-              <div className="absolute top-0 right-0 w-32 h-32 bg-yellow-600/5 rounded-full -mr-10 -mt-10"></div>
-              <h3 className="text-xs text-gray-400 font-bold tracking-[0.2em] mb-8 uppercase italic border-l-2 border-yellow-600 pl-3">Kasir Analytics</h3>
-              <p className="text-[10px] text-gray-500 mb-1 tracking-tighter uppercase font-bold">Total Penjualan Pribadi (Hari Ini)</p>
-              <p className="text-3xl font-black text-yellow-500 tracking-tight mb-8">Rp {todaySales.toLocaleString('id-ID')}</p>
-              
-              <p className="text-[10px] text-gray-500 mb-1 tracking-tighter uppercase font-bold mt-4">Durasi Shift Berjalan</p>
-              <p className="text-xl font-mono font-bold">{formatTime(seconds)}</p>
+            <div className="bg-cardBg border border-gray-800 rounded-3xl p-8 shadow-xl">
+              <h3 className="text-xs text-gray-400 font-bold mb-8 uppercase italic border-l-2 border-yellow-600 pl-3 tracking-widest">Kasir Analytics</h3>
+              <p className="text-[10px] text-gray-500 mb-1 uppercase font-bold tracking-tighter">Sales Pribadi (Hari Ini)</p>
+              <p className="text-3xl font-black text-yellow-500 mb-8 tracking-tight">Rp {todaySales.toLocaleString('id-ID')}</p>
+              <p className="text-[10px] text-gray-500 mb-1 uppercase font-bold tracking-tighter">Durasi Shift</p>
+              <p className="text-xl font-mono font-bold tracking-widest">{formatTime(seconds)}</p>
             </div>
           </div>
         )}
       </main>
 
-      {/* POP-UP MODAL INVENTORY */}
+      {/* MODAL INVENTORY (Ambil/Taruh) */}
       {isModalOpen && (
-        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 backdrop-blur-sm p-4">
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-cardBg border border-burgundy rounded-3xl p-8 w-full max-w-sm">
-            <h2 className="text-2xl font-black italic mb-2 uppercase tracking-widest text-center">{modalData.action === 'ambil' ? 'Ambil' : 'Taruh'} <span className="text-burgundyLight">{modalData.item}</span></h2>
-            <div className="flex flex-col gap-3 mb-8 mt-6">
-              <input type="number" min="1" max={modalData.action === 'ambil' ? modalData.maxStock : 999} value={qtyInput} onChange={(e) => setQtyInput(parseInt(e.target.value) || 0)} className="bg-darkBg border border-gray-700 rounded-2xl p-4 text-center text-3xl font-black focus:outline-none focus:border-burgundy" />
-            </div>
+            <h2 className="text-xl font-black italic mb-6 uppercase text-center tracking-widest">{modalData.action === 'ambil' ? 'Ambil' : 'Taruh'} <span className="text-burgundyLight">{modalData.item}</span></h2>
+            <input type="number" value={qtyInput} onChange={(e) => setQtyInput(parseInt(e.target.value) || 0)} className="bg-darkBg border border-gray-700 rounded-xl p-4 w-full text-center text-3xl font-black mb-8 focus:border-burgundy outline-none" />
             <div className="flex gap-4">
-              <button onClick={() => setIsModalOpen(false)} className="flex-1 bg-gray-800 py-3.5 rounded-xl font-bold text-[10px] uppercase">Batal</button>
-              <button onClick={submitTransaction} disabled={isSubmitting} className="flex-1 bg-burgundy py-3.5 rounded-xl font-bold text-[10px] uppercase">{isSubmitting ? 'Proses...' : 'Konfirmasi'}</button>
+              <button onClick={() => setIsModalOpen(false)} className="flex-1 bg-gray-800 py-3.5 rounded-xl font-bold text-[10px] uppercase tracking-widest">Batal</button>
+              <button onClick={submitTransaction} disabled={isSubmitting} className="flex-1 bg-burgundy py-3.5 rounded-xl font-bold text-[10px] uppercase tracking-widest">{isSubmitting ? '...' : 'Konfirmasi'}</button>
             </div>
           </div>
         </div>
       )}
 
-      {/* POP-UP MODAL PENJUALAN */}
+      {/* MODAL PENJUALAN */}
       {isSalesModalOpen && (
-        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-          <div className="bg-cardBg border border-yellow-600/50 rounded-3xl p-8 w-full max-w-sm shadow-[0_0_50px_rgba(202,138,4,0.15)]">
-            <h2 className="text-2xl font-black italic mb-6 uppercase tracking-widest text-center text-yellow-500">Catat Penjualan</h2>
-            <div className="space-y-5 mb-8">
-              <div className="flex flex-col gap-2">
-                <label className="text-[10px] font-bold text-gray-500 tracking-widest uppercase">Pilih Minuman</label>
-                <select value={salesData.item} onChange={(e) => setSalesData({...salesData, item: e.target.value})} className="bg-darkBg border border-gray-700 rounded-xl p-3 text-sm font-bold focus:outline-none focus:border-yellow-600 appearance-none cursor-pointer">
-                  {inventory.map((item, idx) => (
-                    <option key={idx} value={item.name}>{item.name} - Rp {item.price?.toLocaleString('id-ID')}</option>
-                  ))}
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-cardBg border border-yellow-600/50 rounded-3xl p-8 w-full max-w-sm">
+            <h2 className="text-xl font-black italic mb-6 uppercase text-center text-yellow-500 tracking-widest">Catat Penjualan</h2>
+            <div className="space-y-4 mb-8">
+              <select value={salesData.item} onChange={(e) => setSalesData({...salesData, item: e.target.value})} className="bg-darkBg border border-gray-700 rounded-xl p-3 w-full font-bold outline-none cursor-pointer">
+                {inventory.map((item, idx) => ( <option key={idx} value={item.name}>{item.name} - Rp {item.price?.toLocaleString('id-ID')}</option> ))}
+              </select>
+              <input type="number" value={salesData.qty} onChange={(e) => setSalesData({...salesData, qty: parseInt(e.target.value) || 0})} className="bg-darkBg border border-gray-700 rounded-xl p-3 w-full text-center text-xl font-black outline-none" />
+              <div className="bg-yellow-600/10 p-4 rounded-xl text-center"><p className="text-[10px] font-bold text-yellow-600 uppercase mb-1 tracking-widest">Total Bayar</p><p className="text-2xl font-black text-yellow-500">Rp {((inventory.find(i => i.name === salesData.item)?.price || 0) * salesData.qty).toLocaleString('id-ID')}</p></div>
+            </div>
+            <div className="flex gap-4">
+              <button onClick={() => setIsSalesModalOpen(false)} className="flex-1 bg-gray-800 py-3.5 rounded-xl font-bold text-[10px] uppercase tracking-widest">Batal</button>
+              <button onClick={submitSales} disabled={isSalesSubmitting} className="flex-1 bg-yellow-600 py-3.5 rounded-xl font-bold text-[10px] uppercase tracking-widest shadow-lg shadow-yellow-900/20">{isSalesSubmitting ? '...' : 'Konfirmasi'}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL PENGELUARAN (KHUSUS MANAGEMENT) */}
+      {isExpenseModalOpen && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-cardBg border border-red-600/50 rounded-3xl p-8 w-full max-w-sm shadow-[0_0_50px_rgba(220,38,38,0.15)]">
+            <h2 className="text-xl font-black italic mb-6 uppercase text-center text-red-500 tracking-widest">Catat Pengeluaran</h2>
+            <div className="space-y-4 mb-8">
+              <div>
+                <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest ml-1">Kategori</label>
+                <select value={expenseData.kategori} onChange={(e) => setExpenseData({...expenseData, kategori: e.target.value})} className="bg-darkBg border border-gray-700 rounded-xl p-3 w-full font-bold outline-none cursor-pointer mt-1">
+                  <option value="Operasional">Operasional</option>
+                  <option value="Bonus Karyawan">Bonus Karyawan</option>
+                  <option value="Bahan Baku">Bahan Baku</option>
+                  <option value="Reimburse">Reimburse</option>
                 </select>
               </div>
-              <div className="flex flex-col gap-2">
-                <label className="text-[10px] font-bold text-gray-500 tracking-widest uppercase">Jumlah Laku</label>
-                <input type="number" min="1" value={salesData.qty} onChange={(e) => setSalesData({...salesData, qty: parseInt(e.target.value) || 0})} className="bg-darkBg border border-gray-700 rounded-xl p-3 text-center text-xl font-black focus:outline-none focus:border-yellow-600" />
+              <div>
+                <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest ml-1">Keterangan</label>
+                <input type="text" placeholder="Contoh: Bayar Gaji DJ" value={expenseData.keterangan} onChange={(e) => setExpenseData({...expenseData, keterangan: e.target.value})} className="bg-darkBg border border-gray-700 rounded-xl p-3 w-full font-bold text-sm outline-none mt-1" />
               </div>
-              <div className="bg-yellow-600/10 border border-yellow-600/30 rounded-xl p-4 text-center mt-4">
-                <p className="text-[10px] font-bold text-yellow-600 tracking-widest uppercase mb-1">Total Dibayar Cust</p>
-                <p className="text-2xl font-black text-yellow-500">Rp {((inventory.find(i => i.name === salesData.item)?.price || 0) * salesData.qty).toLocaleString('id-ID')}</p>
+              <div>
+                <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest ml-1">Jumlah (Rp)</label>
+                <input type="number" value={expenseData.jumlah} onChange={(e) => setExpenseData({...expenseData, jumlah: parseInt(e.target.value) || 0})} className="bg-darkBg border border-gray-700 rounded-xl p-3 w-full text-center text-xl font-black outline-none mt-1" />
               </div>
             </div>
             <div className="flex gap-4">
-              <button onClick={() => setIsSalesModalOpen(false)} className="flex-1 bg-gray-800 hover:bg-gray-700 py-3.5 rounded-xl font-bold text-[10px] tracking-widest transition uppercase">Batal</button>
-              <button onClick={submitSales} disabled={isSalesSubmitting} className="flex-1 bg-yellow-600 hover:bg-yellow-500 text-white py-3.5 rounded-xl font-bold text-[10px] tracking-widest transition shadow-lg shadow-yellow-900/20 uppercase disabled:opacity-50">
-                {isSalesSubmitting ? 'Mencatat...' : 'Konfirmasi'}
-              </button>
+              <button onClick={() => setIsExpenseModalOpen(false)} className="flex-1 bg-gray-800 py-3.5 rounded-xl font-bold text-[10px] uppercase tracking-widest">Batal</button>
+              <button onClick={submitExpense} disabled={isExpenseSubmitting} className="flex-1 bg-red-600 py-3.5 rounded-xl font-bold text-[10px] uppercase tracking-widest shadow-lg shadow-red-900/20">{isExpenseSubmitting ? '...' : 'Konfirmasi'}</button>
             </div>
           </div>
         </div>
