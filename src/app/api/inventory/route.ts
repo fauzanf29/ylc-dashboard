@@ -15,13 +15,14 @@ export async function GET() {
     const sheets = await initSheets();
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: process.env.GOOGLE_SHEETS_ID,
-      range: 'Inventory!A2:D',
+      range: 'Inventory!A2:E',
     });
     
     const rows = response.data.values || [];
     const items = rows.map(row => ({
       name: row[0],
       stock: parseInt(row[1]) || 0,
+      price: parseInt(row[4]) || 0,
     }));
     
     return NextResponse.json(items);
