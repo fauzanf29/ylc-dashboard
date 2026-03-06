@@ -17,14 +17,23 @@ export default function Page() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   
   const [isSalesModalOpen, setIsSalesModalOpen] = useState(false);
-  const [salesData, setSalesData] = useState({ item: '', qty: 1 });
+  const [salesCart, setSalesCart] = useState<any[]>([]); // Untuk nyimpen keranjang belanja
+  const [currentItem, setCurrentItem] = useState('');    // Barang yang lagi dipilih
+  const [currentQty, setCurrentQty] = useState(1);       // Jumlah barang yang lagi diketik
   const [isSalesSubmitting, setIsSalesSubmitting] = useState(false);
   const [todaySales, setTodaySales] = useState(0);
   const [todayItems, setTodayItems] = useState<any[]>([]); // Menyimpan daftar barang laku
 
   // Management & Finance State
   const [mgmtStats, setMgmtStats] = useState<any>(null);
-  const [selectedWeek, setSelectedWeek] = useState(`Minggu ${Math.ceil((new Date().getDate() + new Date(new Date().getFullYear(), 0, 1).getDay()) / 7)}`);
+  const [selectedWeek, setSelectedWeek] = useState(() => {
+    // Patokan awal: Sabtu, 24 Januari 2026 (Awal Week 1)
+    const epoch = new Date('2026-01-24T00:00:00+07:00').getTime();
+    const now = Date.now();
+    const diffInDays = Math.floor((now - epoch) / (1000 * 60 * 60 * 24));
+    const weekNum = Math.floor(diffInDays / 7) + 1;
+    return `Minggu ${weekNum > 0 ? weekNum : 1}`;
+  });
   const [isExpenseModalOpen, setIsExpenseModalOpen] = useState(false);
   const [expenseData, setExpenseData] = useState({ kategori: 'Operasional', keterangan: '', jumlah: 0 });
   const [isExpenseSubmitting, setIsExpenseSubmitting] = useState(false);
@@ -55,9 +64,35 @@ export default function Page() {
 
   useEffect(() => {
     let interval: NodeJS.Timeout;
-    if (isCheckedIn) interval = setInterval(() => setSeconds((prev) => prev + 1), 1000);
-    return () => clearInterval(interval);
-  }, [isCheckedIn]);
+    if (isCheckedIn) {
+      interval = setInterval(() => {
+        const savedCheckInTime = localStorage.getItem('ylc_checkInTime');
+        if (savedCheckInTime) {
+          // Selalu akurat menghitung selisih waktu sekarang dengan waktu check-in
+          setSeconds(Math.floor((Date.now() - parseInt(savedCheckInTime)) / 1000));
+        } else {
+           setSeconds(prev => prev + 1);
+          }
+        }, 1000);
+      }
+      return () => clearInterval(interval);
+    }, [isCheckedIn]);
+
+  useEffect(() => {
+    const savedCheckInTime = localStorage.getItem('ylc_checkInTime');
+    if (savedCheckInTime) {
+      setIsCheckedIn(true);
+      // Lanjut hitung detik dari waktu dia check-in sebelumnya
+      const elapsedSeconds = Math.floor((Date.now() - parseInt(savedCheckInTime)) / 1000);
+      setSeconds(elapsedSeconds);
+    }
+
+    const savedSales = localStorage.getItem('ylc_todaySales');
+    if (savedSales) setTodaySales(parseInt(savedSales));
+
+    const savedItems = localStorage.getItem('ylc_todayItems');
+    if (savedItems) setTodayItems(JSON.parse(savedItems));
+  }, []);
 
   const fetchInventory = async () => {
     setIsInventoryLoading(true);
@@ -74,13 +109,16 @@ export default function Page() {
       if (res.ok) setMgmtStats(await res.json());
     } catch (error) { console.error(error); }
   };
-
+  
   useEffect(() => {
     if (session) {
       fetchInventory();
-      if ((session.user as any).role === 'management') fetchMgmtStats();
+      // Sekarang kita izinkan SEMUA role untuk menarik data ini
+      // Biar staf bisa memfilter namanya sendiri dari daftar Leaderboard
+      fetchMgmtStats(); 
     }
   }, [session, selectedWeek]);
+
 
   const formatTime = (s: number) => {
     const hrs = Math.floor(s / 3600);
@@ -88,14 +126,15 @@ export default function Page() {
     return `${hrs.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}:${(s % 60).toString().padStart(2, '0')}`;
   };
 
+  const userRole = (session?.user as any)?.role || 'unauthorized'; 
+  const userNamaRP = (session?.user as any)?.namaRP || 'Unknown Personnel';
+
   if (status === "loading") return <div className="min-h-screen bg-darkBg flex items-center justify-center"><div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-burgundy"></div></div>;
 
-// JIKA BELUM LOGIN (LANDING PAGE)
+  // JIKA BELUM LOGIN (LANDING PAGE)
   if (!session) {
     return (
       <div className="min-h-screen bg-darkBg flex items-center justify-center p-4 relative overflow-hidden">
-        
-        {/* --- BACKGROUND FOTO DENGAN BLUR & OVERLAY --- */}
         <div className="absolute inset-0 z-0">
           <img 
             src="/ylc-bg.jpeg" 
@@ -105,22 +144,16 @@ export default function Page() {
           <div className="absolute inset-0 bg-black/70 backdrop-blur-[2px]"></div>
         </div>
 
-        {/* --- KOTAK LOGIN --- */}
         <div className="bg-cardBg/90 backdrop-blur-lg p-10 rounded-3xl border border-burgundy shadow-[0_0_80px_rgba(128,0,32,0.4)] text-center max-w-sm w-full relative z-10 transition-all duration-1000 animate-in fade-in slide-in-from-bottom-12">
-          
           <div className="bg-burgundy text-white font-bold w-20 h-20 flex items-center justify-center rounded-3xl mx-auto mb-8 text-3xl tracking-tighter shadow-xl border-4 border-burgundyLight/30">
             YLC
           </div>
-          
-          {/* INI BAGIAN YANG ERROR TADI, SUDAH DIPERBAIKI (</h1>) */}
           <h1 className="text-4xl font-black text-white mb-2 italic tracking-widest uppercase text-shadow-lg">
             Y Luxury <span className="text-burgundyLight">Club</span>
           </h1>
-          
           <p className="text-gray-400 text-xs font-semibold uppercase tracking-widest mb-10 border-b border-gray-800 pb-3">
             Management & Staff Portal
           </p>
-          
           <button 
             onClick={() => signIn('discord')} 
             className="w-full bg-burgundy hover:bg-burgundyLight text-white py-4 mt-2 rounded-2xl font-black transition-all duration-300 shadow-lg text-sm uppercase tracking-widest flex items-center justify-center gap-3 active:scale-95 shadow-burgundy/30"
@@ -128,15 +161,12 @@ export default function Page() {
             <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.08.08 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028 14.09 14.09 0 0 0 1.226-1.994.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.372.292a.077.077 0 0 1-.006.128 12.51 12.51 0 0 1-1.873.892.076.076 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.086 2.157 2.419 0 1.334-.955 2.419-2.157 2.419zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.086 2.157 2.419 0 1.334-.946 2.419-2.157 2.419z"/></svg>
             LOGIN WITH DISCORD
           </button>
-          
           <p className="text-[10px] text-gray-500 mt-12 uppercase tracking-widest font-mono">Powered by Y Luxury Club © Los Santos 2026</p>
         </div>
       </div>
     );
   }
 
-  const userRole = (session?.user as any)?.role || 'unauthorized'; 
-  const userNamaRP = (session?.user as any)?.namaRP || 'Unknown Personnel';
   if (userRole === 'unauthorized') {
     return (
       <div className="min-h-screen bg-darkBg text-white flex flex-col items-center justify-center p-6 text-center">
@@ -149,13 +179,28 @@ export default function Page() {
     );
   }
 
+  // INI FUNGSI ABSENSI YANG SUDAH DIPERBAIKI
   const handleAbsensi = async () => {
     const action = isCheckedIn ? 'checkout' : 'checkin';
     try {
       const res = await fetch('/api/absensi', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ namaStaff: userNamaRP, action }) });
       if (res.ok) {
-        setIsCheckedIn(!isCheckedIn);
-        if (action === 'checkout') setSeconds(0);
+        if (action === 'checkout') {
+          setIsCheckedIn(false);
+          setSeconds(0);
+          setTodaySales(0);
+          setTodayItems([]);
+          
+          // Hapus semua ingatan di browser saat Check Out
+          localStorage.removeItem('ylc_checkInTime');
+          localStorage.removeItem('ylc_todaySales');
+          localStorage.removeItem('ylc_todayItems');
+        } else {
+          setIsCheckedIn(true);
+          // Set memori waktu masuk
+          localStorage.setItem('ylc_checkInTime', Date.now().toString());
+        }
+        
         if (userRole === 'management') fetchMgmtStats();
       }
     } catch (error) { alert("Error menghubungi server."); }
@@ -176,44 +221,91 @@ export default function Page() {
   };
 
   const submitSales = async () => {
+    if (salesCart.length === 0) return alert("Struk masih kosong, Bos!");
     setIsSalesSubmitting(true);
+    
+    let totalCartSales = 0;
+    let addedItems: any[] = [];
+
     try {
-      const res = await fetch('/api/penjualan', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ itemName: salesData.item, quantity: salesData.qty, userName: userNamaRP }) });
-      const data = await res.json();
-      if (res.ok) {
-        setTodaySales(prev => prev + data.totalHarga);
-
-        setTodayItems(prev => {
-          const existing = prev.find(i => i.item === salesData.item);
-          if (existing) {
-            return prev.map(i => i.item === salesData.item ? { ...i, qty: i.qty + salesData.qty } : i);
-          }
-          return [...prev, { item: salesData.item, qty: salesData.qty }];
+      // Mesin ini akan ngirim data ke Google Sheets satu per satu dari keranjang
+      for (const item of salesCart) {
+        const res = await fetch('/api/penjualan', { 
+          method: 'POST', 
+          headers: { 'Content-Type': 'application/json' }, 
+          body: JSON.stringify({ itemName: item.item, quantity: item.qty, userName: userNamaRP }) 
         });
-
-        setIsSalesModalOpen(false);
         
-        if (userRole === 'management') fetchMgmtStats();
-        alert("Penjualan Tercatat!");
-      } else alert(data.error);
-    } catch (error) { alert("Error!"); }
+        const data = await res.json().catch(() => ({}));
+        if (res.ok) {
+          totalCartSales += data.totalHarga;
+          addedItems.push({ item: item.item, qty: item.qty });
+        } else {
+          alert(`❌ Gagal mencatat ${item.item}: ${data.error}`);
+        }
+      }
 
+      // Update State & LocalStorage untuk Total Sales Sekaligus
+      const newTotalSales = todaySales + totalCartSales;
+      setTodaySales(newTotalSales);
+      localStorage.setItem('ylc_todaySales', newTotalSales.toString());
+      
+      // Update State & LocalStorage untuk Item Terjual
+      setTodayItems(prev => {
+        let updatedItems = [...prev];
+        addedItems.forEach(cartItem => {
+          const existingIndex = updatedItems.findIndex(i => i.item === cartItem.item);
+          if (existingIndex >= 0) {
+            updatedItems[existingIndex].qty += cartItem.qty;
+          } else {
+            updatedItems.push({ item: cartItem.item, qty: cartItem.qty });
+          }
+        });
+        localStorage.setItem('ylc_todayItems', JSON.stringify(updatedItems));
+        return updatedItems;
+      });
+
+      setIsSalesModalOpen(false);
+      if (userRole === 'management') fetchMgmtStats();
+      alert(`✅ Transaksi Selesai! Total: $ ${totalCartSales.toLocaleString('id-ID')}`);
+      
+    } catch (error) { 
+      alert("❌ Web gagal nyambung ke mesin API!"); 
+    }
     
     setIsSalesSubmitting(false);
   };
 
+
   const submitExpense = async () => {
     if (expenseData.jumlah <= 0) return alert("Jumlah minimal $ 1");
+    
+    // Nyalakan status loading
     setIsExpenseSubmitting(true);
+    
     try {
-      const res = await fetch('/api/management/expense', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...expenseData, userName: userNamaRP }) });
+      const res = await fetch('/api/management/expenses', { 
+        method: 'POST', 
+        headers: { 'Content-Type': 'application/json' }, 
+        body: JSON.stringify({ ...expenseData, userName: userNamaRP }) 
+      });
+      
+      const data = await res.json().catch(() => ({})); 
+      
       if (res.ok) {
         setIsExpenseModalOpen(false);
         setExpenseData({ kategori: 'Operasional', keterangan: '', jumlah: 0 });
-        fetchMgmtStats();
-        alert("Pengeluaran Tercatat!");
+        if (userRole === 'management') fetchMgmtStats();
+        alert("💸 Pengeluaran Tercatat di Brankas!");
+      } else {
+        // Kalau Gagal, Munculkan Alert!
+        alert(`❌ Server Menolak! Alasan: ${data.error || res.statusText}`);
       }
-    } catch (error) { alert("Error!"); }
+    } catch (error) { 
+      alert("❌ Web gagal nyambung ke mesin API!"); 
+    }
+    
+    // Matikan status loading
     setIsExpenseSubmitting(false);
   };
 
@@ -259,8 +351,16 @@ export default function Page() {
                 </button>
               )}
               {(isCheckedIn || userRole === 'management') && (
-                <button onClick={() => { setSalesData({ item: inventory[0]?.name, qty: 1 }); setIsSalesModalOpen(true); }} className="px-8 py-2.5 rounded-xl font-bold text-xs transition bg-yellow-600 hover:bg-yellow-500 text-white uppercase tracking-widest shadow-lg">
-                  $ Catat Penjualan
+                <button 
+                  onClick={() => { 
+                    setSalesCart([]); // Kosongkan keranjang
+                    setCurrentItem(inventory[0]?.name || ''); 
+                    setCurrentQty(1); 
+                    setIsSalesModalOpen(true); 
+                  }} 
+                  className="px-8 py-2.5 rounded-xl font-bold text-xs transition bg-yellow-600 hover:bg-yellow-500 text-white uppercase tracking-widest shadow-lg"
+                >
+                  $ Buka Kasir
                 </button>
               )}
               {userRole === 'management' && (
@@ -328,9 +428,9 @@ export default function Page() {
                     </tbody>
                   </table>
                 </div>
-                {/* === TABEL BARU: ITEM TERLARIS & LOG PENGELUARAN === */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-8">
-                
+              </div>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {/* Tabel Item Terjual */}
                 <div className="bg-cardBg border border-gray-800 rounded-3xl overflow-hidden shadow-xl">
                   <div className="p-4 border-b border-gray-800 bg-darkBg/50">
@@ -376,13 +476,9 @@ export default function Page() {
                     </ul>
                   </div>
                 </div>
+              </div>
 
-              </div>
-              {/* === END TABEL BARU === */}
-              </div>
             </div>
-
-            
           )}
 
           {/* INVENTORY SECTION */}
@@ -391,7 +487,7 @@ export default function Page() {
               <div className="w-20 h-20 bg-burgundy/10 rounded-full flex items-center justify-center mb-6 border border-burgundy/30 shadow-[0_0_30px_rgba(128,0,32,0.2)]">
                 <svg className="w-10 h-10 text-burgundyLight" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
               </div>
-              <h2 className="text-2xl font-black italic uppercase mb-4 text-">Akses Terkunci</h2>
+              <h2 className="text-2xl font-black italic uppercase mb-4">Akses Terkunci</h2>
               <p className="text-gray-400 mb-8 text-sm">Silakan <strong className="text-burgundyLight">Check In</strong> untuk membuka brankas.</p>
               <button onClick={handleAbsensi} className="bg-green-600 text-white px-8 py-3 rounded-xl font-bold text-sm uppercase tracking-widest animate-pulse">Mulai Shift</button>
             </div>
@@ -416,9 +512,26 @@ export default function Page() {
                   ))}
                 </div>
               </div>
-<div className="bg-cardBg border border-gray-800 rounded-3xl p-8 shadow-xl flex flex-col h-full">
+              <div className="bg-cardBg border border-gray-800 rounded-3xl p-8 shadow-xl flex flex-col h-full">
                 <h3 className="text-xs text-gray-400 font-bold mb-6 uppercase italic border-l-2 border-yellow-600 pl-3 tracking-widest">Kasir Analytics</h3>
-                
+                {/* --- TAMBAHAN BARU: STATISTIK MINGGUAN STAFF --- */}
+                <div className="grid grid-cols-2 gap-4 mb-6 border-b border-gray-800 pb-6">
+                  <div className="bg-darkBg p-4 rounded-2xl border border-gray-800 shadow-inner relative overflow-hidden">
+                    <div className="absolute top-0 right-0 w-8 h-8 bg-green-500/10 rounded-bl-full"></div>
+                    <p className="text-[9px] text-gray-500 mb-1 uppercase font-bold tracking-widest">Sales (Week Ini)</p>
+                    <p className="text-lg font-black text-green-500">
+                      $ {(mgmtStats?.leaderboard?.find((s: any) => s.name === userNamaRP)?.totalSales || 0).toLocaleString('id-ID')}
+                    </p>
+                  </div>
+                  <div className="bg-darkBg p-4 rounded-2xl border border-gray-800 shadow-inner relative overflow-hidden">
+                    <div className="absolute top-0 right-0 w-8 h-8 bg-burgundy/20 rounded-bl-full"></div>
+                    <p className="text-[9px] text-gray-500 mb-1 uppercase font-bold tracking-widest">Kerja (Week Ini)</p>
+                    <p className="text-lg font-mono font-bold text-burgundyLight">
+                      {(mgmtStats?.leaderboard?.find((s: any) => s.name === userNamaRP)?.totalHours || 0).toFixed(2)} Jam
+                    </p>
+                  </div>
+                </div>
+                {/* ----------------------------------------------- */}
                 <div className="mb-6">
                   <p className="text-[10px] text-gray-500 mb-1 uppercase font-bold tracking-tighter">Sales Pribadi (Shift Ini)</p>
                   <p className="text-3xl font-black text-yellow-500 tracking-tight">$ {todaySales.toLocaleString('id-ID')}</p>
@@ -464,21 +577,80 @@ export default function Page() {
       )}
 
       {/* MODAL SALES */}
+      {/* MODAL SALES (SISTEM KERANJANG/STRUK) */}
       {isSalesModalOpen && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-cardBg border border-yellow-600/50 rounded-3xl p-8 w-full max-w-sm">
-            <h2 className="text-xl font-black italic mb-6 uppercase text-center text-yellow-500">Catat Penjualan</h2>
-            <div className="space-y-4 mb-8">
-              <select value={salesData.item} onChange={(e) => setSalesData({...salesData, item: e.target.value})} className="bg-darkBg border border-gray-700 rounded-xl p-3 w-full font-bold outline-none">
+          <div className="bg-cardBg border border-yellow-600/50 rounded-3xl p-6 w-full max-w-md shadow-[0_0_50px_rgba(202,138,4,0.15)]">
+            <h2 className="text-xl font-black italic mb-4 uppercase text-center text-yellow-500">Struk Kasir</h2>
+            
+            {/* Area Pilih Barang */}
+            <div className="flex gap-2 mb-4">
+              <select value={currentItem} onChange={(e) => setCurrentItem(e.target.value)} className="bg-darkBg border border-gray-700 rounded-xl p-3 flex-1 font-bold outline-none text-xs">
                 {inventory.map((item, idx) => ( <option key={idx} value={item.name}>{item.name} - $ {item.price?.toLocaleString('id-ID')}</option> ))}
               </select>
-              <input type="number" value={salesData.qty} onChange={(e) => setSalesData({...salesData, qty: parseInt(e.target.value) || 0})} className="bg-darkBg border border-gray-700 rounded-xl p-3 w-full text-center text-xl font-black outline-none" />
-              <div className="bg-yellow-600/10 p-4 rounded-xl text-center"><p className="text-2xl font-black text-yellow-500">$ {((inventory.find(i => i.name === salesData.item)?.price || 0) * salesData.qty).toLocaleString('id-ID')}</p></div>
+              <input type="number" value={currentQty} onChange={(e) => setCurrentQty(parseInt(e.target.value) || 0)} className="bg-darkBg border border-gray-700 rounded-xl p-3 w-20 text-center font-black outline-none text-sm" />
+              <button 
+                onClick={() => {
+                  const invItem = inventory.find(i => i.name === currentItem);
+                  if (invItem && currentQty > 0) {
+                    setSalesCart(prev => {
+                      const existing = prev.find(i => i.item === currentItem);
+                      if (existing) return prev.map(i => i.item === currentItem ? { ...i, qty: i.qty + currentQty } : i);
+                      return [...prev, { item: currentItem, qty: currentQty, price: invItem.price }];
+                    });
+                    setCurrentQty(1); // Reset angka jadi 1 lagi setelah ditambah
+                  }
+                }} 
+                className="bg-yellow-600/20 hover:bg-yellow-600/40 text-yellow-500 px-4 rounded-xl font-black text-xl transition-colors"
+                title="Tambah ke Struk"
+              >
+                +
+              </button>
             </div>
-            <div className="flex gap-4"><button onClick={() => setIsSalesModalOpen(false)} className="flex-1 bg-gray-800 py-3.5 rounded-xl font-bold text-[10px] uppercase">Batal</button><button onClick={submitSales} className="flex-1 bg-yellow-600 py-3.5 rounded-xl font-bold text-[10px] uppercase">Konfirmasi</button></div>
+
+            {/* List Keranjang Belanja */}
+            <div className="bg-darkBg border border-gray-800 rounded-xl p-4 mb-4 min-h-[150px] max-h-[200px] overflow-y-auto">
+              {salesCart.length === 0 ? (
+                <p className="text-center text-gray-500 text-[10px] uppercase tracking-widest italic mt-12">Struk masih kosong...</p>
+              ) : (
+                <ul className="space-y-3">
+                  {salesCart.map((cartItem, idx) => (
+                    <li key={idx} className="flex justify-between items-center border-b border-gray-800/50 pb-2">
+                      <div className="flex flex-col">
+                        <span className="font-bold text-xs uppercase text-gray-200">{cartItem.item}</span>
+                        <span className="text-[10px] text-gray-500">$ {cartItem.price.toLocaleString('id-ID')} x {cartItem.qty}</span>
+                      </div>
+                      <div className="flex items-center gap-4">
+                        <span className="font-black text-yellow-500 text-sm">$ {(cartItem.price * cartItem.qty).toLocaleString('id-ID')}</span>
+                        <button onClick={() => setSalesCart(prev => prev.filter((_, i) => i !== idx))} className="text-red-500 hover:text-red-400 text-xs font-bold" title="Hapus Barang">✖</button>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+
+            {/* Total Tagihan */}
+            <div className="flex justify-between items-center mb-6 bg-yellow-600/10 p-4 rounded-xl border border-yellow-600/20">
+              <span className="font-bold text-[10px] uppercase text-gray-400 tracking-widest">Total Tagihan:</span>
+              <span className="text-3xl font-black text-yellow-500">$ {salesCart.reduce((total, item) => total + (item.price * item.qty), 0).toLocaleString('id-ID')}</span>
+            </div>
+
+            {/* Tombol Bawah */}
+            <div className="flex gap-4">
+              <button onClick={() => setIsSalesModalOpen(false)} className="flex-1 bg-gray-800 hover:bg-gray-700 py-3.5 rounded-xl font-bold text-[10px] uppercase transition-colors">Tutup</button>
+              <button 
+                onClick={submitSales} 
+                disabled={isSalesSubmitting || salesCart.length === 0}
+                className={`flex-1 py-3.5 rounded-xl font-bold text-[10px] uppercase transition-all shadow-lg ${isSalesSubmitting || salesCart.length === 0 ? 'bg-yellow-900/30 text-gray-600 cursor-not-allowed shadow-none' : 'bg-yellow-600 text-white hover:bg-yellow-500 shadow-yellow-600/20'}`}
+              >
+                {isSalesSubmitting ? 'Memproses...' : 'Bayar Sekarang'}
+              </button>
+            </div>
           </div>
         </div>
       )}
+
 
       {/* MODAL EXPENSE */}
       {isExpenseModalOpen && (
@@ -496,7 +668,13 @@ export default function Page() {
             </div>
             <div className="flex gap-4">
               <button onClick={() => setIsExpenseModalOpen(false)} className="flex-1 bg-gray-800 py-3.5 rounded-xl font-bold text-[10px] uppercase">Batal</button>
-              <button onClick={submitExpense} className="flex-1 bg-red-600 py-3.5 rounded-xl font-bold text-[10px] uppercase">Konfirmasi</button>
+              <button 
+                onClick={submitExpense} 
+                disabled={isExpenseSubmitting}
+                className={`flex-1 py-3.5 rounded-xl font-bold text-[10px] uppercase transition-all ${isExpenseSubmitting ? 'bg-red-900 text-gray-400 cursor-wait' : 'bg-red-600 text-white hover:bg-red-500'}`}
+              >
+                {isExpenseSubmitting ? 'Mencatat...' : 'Konfirmasi'}
+              </button>
             </div>
           </div>
         </div>

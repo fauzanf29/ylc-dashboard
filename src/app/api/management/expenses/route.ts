@@ -20,9 +20,11 @@ export async function POST(req: Request) {
 
     const now = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Jakarta" }));
     const timeStr = now.toLocaleString('id-ID');
-    const startOfYear = new Date(now.getFullYear(), 0, 1);
-    const days = Math.floor((now.getTime() - startOfYear.getTime()) / (24 * 60 * 60 * 1000));
-    const weekNumber = Math.ceil((now.getDay() + 1 + days) / 7);
+    const epoch = new Date('2026-01-24T00:00:00+07:00').getTime();
+    const nowMs = now.getTime();
+    const diffInDays = Math.floor((nowMs - epoch) / (1000 * 60 * 60 * 24));
+    const weekNumber = Math.floor(diffInDays / 7) + 1;
+
 
     // Catat ke tab Log_Pengeluaran
     await sheets.spreadsheets.values.append({
