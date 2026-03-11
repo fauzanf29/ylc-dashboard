@@ -19,7 +19,7 @@ export async function GET(req: Request) {
     const spreadsheetId = process.env.GOOGLE_SHEETS_ID;
 
     const [salesRes, expenseRes, absensiRes] = await Promise.all([
-      sheets.spreadsheets.values.get({ spreadsheetId, range: 'Log_Penjualan!A2:F' }),
+      sheets.spreadsheets.values.get({ spreadsheetId, range: 'Log_Penjualan!A2:G' }),
       sheets.spreadsheets.values.get({ spreadsheetId, range: 'Log_Pengeluaran!A2:F' }),
       sheets.spreadsheets.values.get({ spreadsheetId, range: 'Absensi!A2:F' })
     ]);
@@ -91,7 +91,7 @@ export async function GET(req: Request) {
     });
 
     const setoran20 = weekBruto * 0.2; 
-    const netProfit = weekBruto - weekModal - setoran20 - weekExpense;
+    const netProfit = (weekBruto * 0.8) - weekExpense;
 
     return NextResponse.json({
       totalKasGlobal,

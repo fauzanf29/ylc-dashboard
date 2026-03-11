@@ -23,6 +23,7 @@ export async function GET() {
       name: row[0],
       stock: parseInt(row[1]) || 0,
       price: parseInt(row[4]) || 0,
+      modal: parseInt(row[5]) || 0,
     }));
     
     return NextResponse.json(items);

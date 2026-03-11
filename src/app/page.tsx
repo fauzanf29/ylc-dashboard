@@ -398,6 +398,15 @@ export default function Page() {
                   <p className="text-[10px] text-burgundyLight font-bold uppercase mb-2">Net (80% - Exp)</p>
                   <p className="text-2xl font-black text-white">$ {mgmtStats?.finance?.net?.toLocaleString('id-ID') || 0}</p>
                 </div>
+                {/* KARTU COGS (MODAL) */}
+<div className="bg-cardBg border border-gray-800 p-6 rounded-2xl shadow-lg border-l-4 border-l-orange-500">
+  <p className="text-[10px] text-gray-500 font-bold uppercase mb-2 tracking-widest">Total COGS (Modal)</p>
+  <p className="text-2xl font-black text-orange-500">
+    {/* ✨ PAKAI .modal BUKAN .cogs atau .totalCogs */}
+    $ {mgmtStats?.finance?.modal?.toLocaleString('id-ID') || 0}
+  </p>
+  <p className="text-[9px] text-gray-600 italic mt-1">*Beban modal dari barang laku</p>
+</div>
               </div>
 
               {/* Leaderboard Table */}
@@ -424,6 +433,56 @@ export default function Page() {
                   </table>
                 </div>
               </div>
+
+              {/* --- BAGIAN YANG TADI ILANG (TOP ITEMS & LOG PENGELUARAN) --- */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-8">
+                {/* Tabel Item Terjual */}
+                <div className="bg-cardBg border border-gray-800 rounded-3xl overflow-hidden shadow-xl">
+                  <div className="p-4 border-b border-gray-800 bg-darkBg/50">
+                    <h3 className="font-black italic uppercase tracking-widest text-xs text-green-500">Top Items (Minggu Ini)</h3>
+                  </div>
+                  <div className="p-4 overflow-y-auto max-h-[300px]">
+                    <ul className="space-y-3">
+                      {!mgmtStats?.itemSales?.length ? (
+                        <p className="text-center text-[10px] text-gray-500 uppercase tracking-widest my-4">Belum ada penjualan</p>
+                      ) : (
+                        mgmtStats.itemSales.map((item: any, idx: number) => (
+                          <li key={idx} className="flex justify-between items-center border-b border-gray-800/50 pb-2">
+                            <span className="font-bold uppercase text-xs text-gray-300">{item.name}</span>
+                            <span className="bg-burgundy/20 text-burgundyLight px-3 py-1 rounded-full text-[10px] font-black">{item.qty} Pcs</span>
+                          </li>
+                        ))
+                      )}
+                    </ul>
+                  </div>
+                </div>
+
+                {/* Tabel Log Pengeluaran */}
+                <div className="bg-cardBg border border-gray-800 rounded-3xl overflow-hidden shadow-xl">
+                  <div className="p-4 border-b border-gray-800 bg-darkBg/50">
+                    <h3 className="font-black italic uppercase tracking-widest text-xs text-red-500">Log Pengeluaran</h3>
+                  </div>
+                  <div className="p-4 overflow-y-auto max-h-[300px]">
+                    <ul className="space-y-4">
+                      {!mgmtStats?.expensesList?.length ? (
+                        <p className="text-center text-[10px] text-gray-500 uppercase tracking-widest my-4">Nihil Pengeluaran</p>
+                      ) : (
+                        mgmtStats.expensesList.map((exp: any, idx: number) => (
+                          <li key={idx} className="border-b border-gray-800/50 pb-3">
+                            <div className="flex justify-between items-start mb-1">
+                              <span className="font-bold text-xs uppercase text-red-400">{exp.kategori}</span>
+                              <span className="font-black text-xs text-red-500">- $ {exp.amount.toLocaleString('id-ID')}</span>
+                            </div>
+                            <p className="text-[10px] text-gray-400 italic mb-1">{exp.keterangan}</p>
+                            <p className="text-[9px] text-gray-600 font-bold uppercase tracking-widest">Oleh: {exp.pic}</p>
+                          </li>
+                        ))
+                      )}
+                    </ul>
+                  </div>
+                </div>
+              </div>
+              {/* --- BATAS BAGIAN YANG ILANG --- */}
 
               {/* Pending Reimburse (Khusus Management) */}
               <div className="bg-cardBg border border-blue-600/30 rounded-3xl overflow-hidden shadow-xl mt-4">
@@ -622,7 +681,7 @@ export default function Page() {
             <h2 className="text-xl font-black italic mb-6 uppercase text-center text-red-500">Catat Pengeluaran</h2>
             <div className="space-y-4 mb-8">
               <select value={expenseData.kategori} onChange={(e) => setExpenseData({...expenseData, kategori: e.target.value})} className="bg-darkBg border border-gray-700 rounded-xl p-3 w-full font-bold outline-none text-sm">
-                <option value="Operasional">Operasional</option><option value="Bonus Karyawan">Bonus Karyawan</option><option value="Bahan Baku">Bahan Baku</option>
+                <option value="Operasional">Operasional</option><option value="Bonus Karyawan">Bonus Karyawan</option><option value="Bahan Baku">Bahan Baku</option><option value="Lain-Lain">Lain-Lain</option>
               </select>
               <input type="text" placeholder="Keterangan" value={expenseData.keterangan} onChange={(e) => setExpenseData({...expenseData, keterangan: e.target.value})} className="bg-darkBg border border-gray-700 rounded-xl p-3 w-full font-bold text-sm outline-none" />
               <input type="number" placeholder="Jumlah ($)" value={expenseData.jumlah} onChange={(e) => setExpenseData({...expenseData, jumlah: parseInt(e.target.value) || 0})} className="bg-darkBg border border-gray-700 rounded-xl p-3 w-full text-center text-xl font-black outline-none" />
