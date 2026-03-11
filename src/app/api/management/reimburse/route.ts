@@ -154,6 +154,6 @@ export async function POST(req: Request) {
     }
 
   } catch (error: any) {
-    return NextResponse.json({ error: error.message || "Gagal memproses request reimburse" }, { status: 500 });
+    return NextResponse.json({ error: error.message || "Gagal proses request reimburse" }, { status: 500 });
   }
 }
