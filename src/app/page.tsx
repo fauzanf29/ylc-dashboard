@@ -17,6 +17,7 @@ import StaffPanel from './components/StaffPanel';
 import AllModals from './components/AllModals';
 import FinanceAudit from './components/FinanceAudit';
 import PocketMonitor from './components/PocketMonitor';
+import ValuasiGudang from './components/ValuasiGudang';
 
 export default function Page() {
   // ==========================================
@@ -163,6 +164,7 @@ export default function Page() {
             <StatCards mgmtStats={mgmtStats} />
             <LogsPanel mgmtStats={mgmtStats} />
             <Leaderboard mgmtStats={mgmtStats} selectedWeek={selectedWeek} setSelectedWeek={setSelectedWeek} />
+            <ValuasiGudang inventory={inventory} />
             <ReimbursePanel pendingReimbursements={pendingReimbursements} fetchPendingReimbursements={fetchPendingReimbursements} handleReimburseAction={handleReimburseAction} />
             <FinanceAudit mgmtStats={mgmtStats} inventory={inventory} />
           </div>

@@ -76,7 +76,7 @@ export default function RestockForm({ currentWeek = "Minggu 7", spvName = "SPV_A
   return (
     <div className="bg-cardBg border border-gray-800 p-8 rounded-3xl shadow-xl mt-8">
       <h2 className="text-lg font-black italic text-orange-500 mb-6 uppercase tracking-widest border-l-4 border-orange-500 pl-3">
-        📦 Restock Barang (SPV)
+        📦 Restock Barang 
       </h2>
       
       <form onSubmit={handleAddToCart} className="flex flex-col md:flex-row gap-4 mb-6">
