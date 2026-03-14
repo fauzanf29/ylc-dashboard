@@ -161,12 +161,11 @@ export default function Page() {
         {/* --- PANEL ROLE: MANAGEMENT (BOS) --- */}
         {userRole === 'management' && (
           <div className="space-y-8">
-            <StatCards mgmtStats={mgmtStats} />
             <LogsPanel mgmtStats={mgmtStats} />
             <Leaderboard mgmtStats={mgmtStats} selectedWeek={selectedWeek} setSelectedWeek={setSelectedWeek} />
+            <FinanceAudit mgmtStats={mgmtStats} inventory={inventory} />
             <ValuasiGudang inventory={inventory} />
             <ReimbursePanel pendingReimbursements={pendingReimbursements} fetchPendingReimbursements={fetchPendingReimbursements} handleReimburseAction={handleReimburseAction} />
-            <FinanceAudit mgmtStats={mgmtStats} inventory={inventory} />
           </div>
         )}
 
