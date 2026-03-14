@@ -2,7 +2,6 @@
 
 import React, { useEffect, useState } from 'react';
 
-// Tambahin Props biar bisa nerima nama (Mode Staf)
 interface PocketMonitorProps {
   userName?: string; 
 }
@@ -10,20 +9,66 @@ interface PocketMonitorProps {
 export default function PocketMonitor({ userName }: PocketMonitorProps) {
   const [activePockets, setActivePockets] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  
+  // State baru buat nyimpen nama petinggi HANYA SEKALI
+  const [petinggiNames, setPetinggiNames] = useState<string[]>([]);
 
+  // ==========================================
+  // 🚨 DAFTAR JABATAN VIP (SEKARANG BEBAS HURUF BESAR/KECIL)
+  // ==========================================
+  const vipRoles = ["management", "bos", "manager", "owner", "wakil"]; 
+
+  // ==========================================
+  // 1. TARIK DATA JABATAN (JALAN 1 KALI SAJA PAS WEB DIBUKA)
+  // ==========================================
+  useEffect(() => {
+    const fetchUsers = async () => {
+      try {
+        const res = await fetch('/api/users');
+        if (res.ok) {
+          const usersData = await res.json();
+          
+          // Paksa semua tulisan di vipRoles jadi HURUF BESAR
+          const vipRolesUpper = vipRoles.map(r => r.toUpperCase());
+
+          const names = usersData
+            .filter((user: any) => vipRolesUpper.includes((user.Role || "").toString().trim().toUpperCase()))
+            .map((user: any) => (user.Nama_RP || "").toString().trim().toUpperCase());
+            
+          setPetinggiNames(names);
+        }
+      } catch (e) {
+        console.error("Gagal load data VIP");
+      }
+    };
+    
+    // Tarik data VIP hanya kalau yang buka ini Bos/SPV (Radar Utama)
+    if (!userName) fetchUsers();
+  }, [userName]);
+
+  // ==========================================
+  // 2. TARIK DATA RADAR (YANG DI-LOOP)
+  // ==========================================
   const fetchPockets = async () => {
     setIsLoading(true);
     try {
-      const res = await fetch('/api/mutasi', { cache: 'no-store' });
-      if (res.ok) {
-        let data = await res.json();
-        
-        // JIKA MODE STAF: Filter datanya cuma nampilin nama dia doang
+      const resMutasi = await fetch('/api/mutasi', { cache: 'no-store' });
+      if (resMutasi.ok) {
+        let mutasiData = await resMutasi.json();
+
+        // Mode Staf: Lihat sendiri
         if (userName) {
-          data = data.filter((p: any) => p.nama === userName);
+          mutasiData = mutasiData.filter((p: any) => p.nama === userName);
+        } 
+        // Mode SPV: Sembunyikan VIP
+        else {
+          mutasiData = mutasiData.filter((p: any) => {
+            const namaStafDiMutasi = (p.nama || "").toString().trim().toUpperCase();
+            return !petinggiNames.includes(namaStafDiMutasi);
+          });
         }
         
-        setActivePockets(data);
+        setActivePockets(mutasiData);
       }
     } catch (e) {
       console.error("Gagal narik radar:", e);
@@ -32,13 +77,17 @@ export default function PocketMonitor({ userName }: PocketMonitorProps) {
     }
   };
 
+  // ==========================================
+  // 3. AUTO REFRESH (HEMAT KUOTA 60 DETIK)
+  // ==========================================
   useEffect(() => {
     fetchPockets();
-    const interval = setInterval(fetchPockets, 15000); // Auto-refresh 15 detik
+    const interval = setInterval(fetchPockets, 60000); 
     return () => clearInterval(interval);
-  }, [userName]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userName, petinggiNames]);
 
-  // Logika Grouping: Kumpulin barang-barang ke dalam 1 Kotak = 1 Orang
+  // LOGIKA TAMPILAN
   const groupedPockets = activePockets.reduce((acc: any, curr: any) => {
     if (!acc[curr.nama]) {
       acc[curr.nama] = { nama: curr.nama, waktu: curr.waktu, items: [] };
@@ -51,7 +100,6 @@ export default function PocketMonitor({ userName }: PocketMonitorProps) {
 
   const displayPockets = Object.values(groupedPockets);
 
-  // Kalau ini Staf biasa dan kantongnya kosong, sembunyiin aja kotaknya biar rapi
   if (userName && displayPockets.length === 0) return null; 
 
   return (
@@ -64,7 +112,7 @@ export default function PocketMonitor({ userName }: PocketMonitorProps) {
             <span className="relative inline-flex rounded-full h-3 w-3 bg-red-500"></span>
           </div>
           <h3 className="font-black italic uppercase tracking-widest text-sm text-red-500">
-            {userName ? '🎒 BARANG DI KANTONG ' : '🚨 LIVE POCKET RADAR'}
+            {userName ? '🎒 BARANG DI KANTONG PRIBADI' : '🚨 LIVE POCKET RADAR'}
           </h3>
         </div>
         <button 
@@ -80,7 +128,7 @@ export default function PocketMonitor({ userName }: PocketMonitorProps) {
         {displayPockets.length === 0 ? (
           <div className="text-center py-8">
             <p className="text-gray-500 text-sm font-bold uppercase tracking-widest">✅ Semua Kantong Staf Kosong</p>
-            <p className="text-[10px] text-gray-600 mt-1">Tidak ada barang klub yang beredar di luar brankas.</p>
+            <p className="text-[10px] text-gray-600 mt-1">Tidak ada staf yang beredar membawa barang klub.</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
