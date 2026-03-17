@@ -214,7 +214,9 @@ const [selectedWeek, setSelectedWeek] = useState(() => {
               mgmtStats={mgmtStats} 
               userName={undefined} 
             />
+            
             <ReimbursePanel pendingReimbursements={pendingReimbursements} fetchPendingReimbursements={fetchPendingReimbursements} handleReimburseAction={handleReimburseAction} />
+            <RestockForm currentWeek={selectedWeek} spvName={userNamaRP} inventory={inventory} />
           </div>
         )}
 
