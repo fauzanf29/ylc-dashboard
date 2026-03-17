@@ -1,7 +1,7 @@
 /** @type {import('tailwindcss').Config} */
 module.exports = {
   content: [
-    "./src/**/*.{js,ts,jsx,tsx,mdx}", // <-- Pastikan baris ini ada
+    "./src/**/*.{js,ts,jsx,tsx,mdx}", 
     "./src/app/**/*.{js,ts,jsx,tsx,mdx}",
   ],
   theme: {
@@ -11,6 +11,15 @@ module.exports = {
         cardBg: '#141414',
         burgundy: '#800020',
         burgundyLight: '#a8002a'
+      },
+      // INI DIA TAMBAHAN ANIMASI KILAPNYA BRE! 🔥
+      keyframes: {
+        shine: {
+          '100%': { left: '125%' },
+        }
+      },
+      animation: {
+        shine: 'shine 1s',
       }
     },
   },

@@ -118,7 +118,7 @@ export default function StockBalance({ inventory, mgmtStats }: any) {
                   <td className="p-4 text-right">
                     {isMissing ? (
                       <span className="text-[10px] bg-red-600 border border-red-400 text-white px-2 py-1 rounded font-black uppercase shadow-[0_0_10px_rgba(255,0,0,0.5)]">
-                        USUT SPV!
+                        Cari tahu!
                       </span>
                     ) : item.stock <= 5 ? (
                       <span className="text-[10px] bg-red-900/50 text-red-500 px-2 py-1 rounded font-black uppercase">Low Stock</span>

@@ -22,7 +22,7 @@ export default function AllModals(props: any) {
       {props.isSalesModalOpen && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-cardBg border border-yellow-600/50 rounded-3xl p-6 w-full max-w-md shadow-2xl">
-            <h2 className="text-xl font-black italic mb-4 uppercase text-center text-yellow-500">Struk Kasir</h2>
+            <h2 className="text-xl font-black italic mb-4 uppercase text-center text-yellow-500">Rekap Penjualan</h2>
             
             <div className="flex gap-2 mb-4">
               <select value={props.currentItem} onChange={(e) => props.setCurrentItem(e.target.value)} className="bg-darkBg border border-gray-700 rounded-xl p-3 flex-1 font-bold outline-none text-xs">
@@ -53,8 +53,7 @@ export default function AllModals(props: any) {
             {props.salesCart.length > 0 && (
               <div className="mb-6 p-4 bg-green-950/40 border border-green-600/50 rounded-xl flex justify-between items-center shadow-[0_0_15px_rgba(0,255,0,0.1)]">
                 <div>
-                  <p className="text-[10px] text-green-500 font-bold uppercase tracking-widest">Grand Total</p>
-                  <p className="text-[9px] text-gray-400 uppercase mt-0.5">Tagihan Pelanggan</p>
+                  <p className="text-[15px] text-green-500 font-bold uppercase tracking-widest">Total</p>
                 </div>
                 <div className="text-right">
                   <span className="font-black text-green-400 text-2xl tracking-wider">
@@ -66,7 +65,7 @@ export default function AllModals(props: any) {
 
             <div className="flex gap-4">
               <button onClick={() => props.setIsSalesModalOpen(false)} className="flex-1 bg-gray-800 py-3.5 rounded-xl font-bold text-[10px] uppercase transition">Tutup</button>
-              <button onClick={props.submitSales} disabled={props.isSalesSubmitting || props.salesCart.length === 0} className={`flex-1 py-3.5 rounded-xl font-bold text-[10px] uppercase transition-all shadow-lg ${props.isSalesSubmitting || props.salesCart.length === 0 ? 'bg-yellow-900/30 text-gray-600 cursor-not-allowed shadow-none' : 'bg-yellow-600 text-white hover:bg-yellow-500'}`}>{props.isSalesSubmitting ? 'Sabar...' : 'Bayar Sekarang'}</button>
+              <button onClick={props.submitSales} disabled={props.isSalesSubmitting || props.salesCart.length === 0} className={`flex-1 py-3.5 rounded-xl font-bold text-[10px] uppercase transition-all shadow-lg ${props.isSalesSubmitting || props.salesCart.length === 0 ? 'bg-yellow-900/30 text-gray-600 cursor-not-allowed shadow-none' : 'bg-yellow-600 text-white hover:bg-yellow-500'}`}>{props.isSalesSubmitting ? 'Sabar...' : 'Kirim Laporan'}</button>
             </div>
           </div>
         </div>
@@ -105,6 +104,46 @@ export default function AllModals(props: any) {
               <button onClick={() => props.setIsReimburseModalOpen(false)} className="flex-1 bg-gray-800 py-3.5 rounded-xl font-bold text-[10px] uppercase transition">Batal</button>
               <button onClick={props.submitReimburseRequest} disabled={props.isReimburseSubmitting} className="flex-1 bg-blue-600 text-white py-3.5 rounded-xl font-bold text-[10px] uppercase">{props.isReimburseSubmitting ? 'Mengirim...' : 'Kirim Request'}</button>
             </div>
+          </div>
+        </div>
+      )}
+      {/* ========================================== */}
+      {/* 💰 MODAL DIVIDEN (PROFIT SHARING) VIP */}
+      {/* ========================================== */}
+      {props.isDividenModalOpen && (
+        <div className="fixed inset-0 bg-black/90 backdrop-blur-md flex items-center justify-center z-[110] p-4">
+          <div className="bg-[#0a0a0a] border border-yellow-600/50 rounded-3xl p-8 w-full max-w-md shadow-[0_0_50px_rgba(234,179,8,0.15)] relative overflow-hidden">
+            
+            {/* Efek Cahaya Emas di Background */}
+            <div className="absolute -top-20 -right-20 w-40 h-40 bg-yellow-500/20 rounded-full blur-3xl pointer-events-none"></div>
+
+            <div className="text-center mb-6">
+              <span className="text-4xl drop-shadow-[0_0_15px_rgba(234,179,8,0.5)]">👑</span>
+              <h2 className="text-2xl font-black italic mt-2 uppercase text-yellow-500 tracking-wider">Tarik Dividen</h2>
+              <p className="text-[9px] text-gray-500 uppercase tracking-widest mt-1">Distribusi Profit YLC Management</p>
+            </div>
+
+            {/* Display Net Profit */}
+            <div className="bg-yellow-950/20 border border-yellow-600/30 p-5 rounded-2xl mb-8 text-center shadow-inner relative z-10">
+              <p className="text-[10px] text-yellow-600/80 font-black uppercase tracking-[0.2em] mb-1">Net Profit Tersedia</p>
+              <p className="text-3xl font-black text-yellow-500 tracking-wider">$ {props.mgmtStats?.finance?.net?.toLocaleString('id-ID') || 0}</p>
+            </div>
+
+            <div className="space-y-6 mb-8 relative z-10">
+              <input type="text" placeholder="Keterangan (Contoh: Bagi Hasil Minggu 3)" value={props.dividenData.keterangan} onChange={(e) => props.setDividenData({...props.dividenData, keterangan: e.target.value})} className="bg-[#111] border border-gray-800 rounded-xl p-3.5 w-full font-bold text-sm outline-none focus:border-yellow-600/50 transition-colors text-gray-200" />
+              <div className="relative">
+                <span className="absolute left-4 top-1/2 -translate-y-1/2 font-black text-gray-600">$</span>
+                <input type="number" placeholder="Nominal Tarik ($)" value={props.dividenData.jumlah || ''} onChange={(e) => props.setDividenData({...props.dividenData, jumlah: parseInt(e.target.value) || 0})} className="bg-[#111] border border-gray-800 rounded-xl p-3.5 pl-9 w-full text-2xl font-black outline-none focus:border-yellow-600/50 transition-colors text-yellow-500" />
+              </div>
+            </div>
+
+            <div className="flex gap-4 relative z-10">
+              <button onClick={() => props.setIsDividenModalOpen(false)} className="flex-1 bg-[#111] hover:bg-gray-800 border border-gray-800 py-4 rounded-xl font-bold text-[10px] uppercase tracking-widest transition-colors text-gray-400">Batal</button>
+              <button onClick={props.submitDividen} disabled={props.isDividenSubmitting} className="flex-1 bg-yellow-600 hover:bg-yellow-500 text-white border border-yellow-500 py-4 rounded-xl font-black text-[10px] uppercase tracking-[0.2em] shadow-[0_0_20px_rgba(234,179,8,0.3)] hover:shadow-[0_0_30px_rgba(234,179,8,0.6)] transition-all disabled:opacity-50">
+                {props.isDividenSubmitting ? 'Mengeksekusi...' : 'Tarik Dividen'}
+              </button>
+            </div>
+
           </div>
         </div>
       )}

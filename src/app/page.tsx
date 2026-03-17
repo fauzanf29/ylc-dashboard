@@ -17,7 +17,7 @@ import AllModals from './components/AllModals';
 import FinanceAudit from './components/FinanceAudit';
 import PocketMonitor from './components/PocketMonitor';
 import ValuasiGudang from './components/ValuasiGudang';
-import TabbedDashboard from './components/TabbedDashboard'; // <-- WAJIB ADA!
+import TabbedDashboard from './components/TabbedDashboard';
 
 export default function Page() {
   // ==========================================
@@ -45,9 +45,21 @@ export default function Page() {
   const [todayItems, setTodayItems] = useState<any[]>([]);
 
   // Finance & Management States
-  const [selectedWeek, setSelectedWeek] = useState(() => {
-    const diffInDays = Math.floor((Date.now() - new Date('2026-01-24T00:00:00+07:00').getTime()) / (1000 * 60 * 60 * 24));
-    return `Minggu ${Math.floor(diffInDays / 7) + 1 > 0 ? Math.floor(diffInDays / 7) + 1 : 1}`;
+const [selectedWeek, setSelectedWeek] = useState(() => {
+    // Patokan awal: Jumat pertama (23 Jan 2026) jam 19:00 WIB
+    const startDate = new Date('2026-01-23T19:00:00+07:00').getTime();
+    const now = Date.now();
+    
+    // 1 Minggu dalam milidetik (7 hari * 24 jam * 60 menit * 60 detik * 1000 ms)
+    const msPerWeek = 7 * 24 * 60 * 60 * 1000;
+    
+    // Hitung selisihnya
+    const diffInMs = now - startDate;
+    
+    // Math.floor memastikan angka minggu baru naik TEPAT setelah lewat jam 19:00
+    const weekNumber = Math.floor(diffInMs / msPerWeek) + 1;
+    
+    return `Minggu ${weekNumber > 0 ? weekNumber : 1}`;
   });
 
   const [isReimburseModalOpen, setIsReimburseModalOpen] = useState(false);
@@ -59,6 +71,11 @@ export default function Page() {
   const [expenseData, setExpenseData] = useState({ kategori: 'Operasional', keterangan: '', jumlah: 0 });
   const [isExpenseSubmitting, setIsExpenseSubmitting] = useState(false);
   const [isSendingWebhook, setIsSendingWebhook] = useState(false);
+
+  // 💰 STATE KHUSUS DIVIDEN
+  const [isDividenModalOpen, setIsDividenModalOpen] = useState(false);
+  const [dividenData, setDividenData] = useState({ keterangan: 'Bagi Hasil Management', jumlah: 0 });
+  const [isDividenSubmitting, setIsDividenSubmitting] = useState(false);
 
   const userRole = (session?.user as any)?.role || 'unauthorized'; 
   const userNamaRP = (session?.user as any)?.namaRP || 'Unknown Personnel';
@@ -101,7 +118,12 @@ export default function Page() {
       }
       const newTotalSales = todaySales + totalCartSales; setTodaySales(newTotalSales); localStorage.setItem('ylc_todaySales', newTotalSales.toString());
       setTodayItems(prev => { let updatedItems = [...prev]; addedItems.forEach(cartItem => { const existingIndex = updatedItems.findIndex(i => i.item === cartItem.item); if (existingIndex >= 0) updatedItems[existingIndex].qty += cartItem.qty; else updatedItems.push({ item: cartItem.item, qty: cartItem.qty }); }); localStorage.setItem('ylc_todayItems', JSON.stringify(updatedItems)); return updatedItems; });
-      setIsSalesModalOpen(false); fetchMgmtStats(); alert(`✅ Transaksi Berhasil! Total: $ ${totalCartSales.toLocaleString('id-ID')}`);
+      
+      // 👇 INI TAMBAHANNYA BIAR KERANJANG KOSONG SETELAH BAYAR 👇
+      setSalesCart([]); 
+      setIsSalesModalOpen(false); 
+      fetchMgmtStats(); 
+      alert(`✅ Transaksi Berhasil! Total: $ ${totalCartSales.toLocaleString('id-ID')}`);
     } catch (e) {} finally { setIsSalesSubmitting(false); }
   };
 
@@ -123,6 +145,25 @@ export default function Page() {
   const sendWebhookReport = async () => {
     if (!mgmtStats || isSendingWebhook || !confirm(`Kirim rekap ke Discord?`)) return; setIsSendingWebhook(true);
     try { await fetch('/api/management/webhook', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ week: selectedWeek, stats: mgmtStats, sender: userNamaRP }) }); alert("Laporan terkirim!"); } catch (e) {} finally { setIsSendingWebhook(false); }
+  };
+
+  // 💰 FUNGSI EKSEKUSI DIVIDEN
+  const submitDividen = async () => {
+    if (isDividenSubmitting || dividenData.jumlah <= 0) return; 
+    setIsDividenSubmitting(true);
+    try { 
+      const res = await fetch('/api/management/dividen', { 
+        method: 'POST', 
+        headers: { 'Content-Type': 'application/json' }, 
+        body: JSON.stringify({ ...dividenData, userName: userNamaRP, minggu: selectedWeek }) 
+      }); 
+      if (res.ok) { 
+        setIsDividenModalOpen(false); 
+        setDividenData({ keterangan: 'Bagi Hasil Management', jumlah: 0 }); 
+        fetchMgmtStats(); 
+        alert("💰 Dividen berhasil diamankan!");
+      } 
+    } catch (e) {} finally { setIsDividenSubmitting(false); }
   };
 
   // Effects
@@ -150,11 +191,12 @@ export default function Page() {
             userRole={userRole} 
             isCheckedIn={isCheckedIn} 
             handleAbsensi={handleAbsensi} 
-            openKasir={() => { setSalesCart([]); setCurrentItem(inventory[0]?.name || ''); setCurrentQty(1); setIsSalesModalOpen(true); }} 
-            openExpense={() => setIsExpenseModalOpen(true)} 
+            openKasir={() => { setCurrentItem(inventory[0]?.name || ''); setCurrentQty(1); setIsSalesModalOpen(true); }}
+            openExpense={() => setIsExpenseModalOpen(true)}
             sendReport={sendWebhookReport} 
             isSending={isSendingWebhook} 
             openReimburse={() => setIsReimburseModalOpen(true)} 
+            openDividen={() => setIsDividenModalOpen(true)} // <-- MENGIRIM PERINTAH BUKA DIVIDEN
             time={formatTime(seconds)} 
         />
 
@@ -229,6 +271,15 @@ export default function Page() {
           salesCart={salesCart} removeFromCart={(idx: number) => setSalesCart(prev => prev.filter((_, i) => i !== idx))} submitSales={submitSales} isSalesSubmitting={isSalesSubmitting} 
           isExpenseModalOpen={isExpenseModalOpen} setIsExpenseModalOpen={setIsExpenseModalOpen} expenseData={expenseData} setExpenseData={setExpenseData} submitExpense={submitExpense} isExpenseSubmitting={isExpenseSubmitting} 
           isReimburseModalOpen={isReimburseModalOpen} setIsReimburseModalOpen={setIsReimburseModalOpen} reimburseData={reimburseData} setReimburseData={setReimburseData} submitReimburseRequest={submitReimburseRequest} isReimburseSubmitting={isReimburseSubmitting} 
+          
+          // PROP DIVIDEN
+          isDividenModalOpen={isDividenModalOpen}
+          setIsDividenModalOpen={setIsDividenModalOpen}
+          dividenData={dividenData}
+          setDividenData={setDividenData}
+          submitDividen={submitDividen}
+          isDividenSubmitting={isDividenSubmitting}
+          mgmtStats={mgmtStats}
       />
       
     </div>

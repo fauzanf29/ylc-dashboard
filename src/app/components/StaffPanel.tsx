@@ -87,13 +87,13 @@ export default function StaffPanel(props: any) {
                         : 'bg-transparent border-burgundy/30 text-burgundyLight hover:bg-burgundy hover:border-burgundy hover:text-white'
                     }`}
                   >
-                    + Ambil
+                    Ambil
                   </button>
                   <button 
                     onClick={() => props.openInventoryModal(item.name, 'taruh', stock)} 
                     className="flex-1 py-3 rounded-xl font-bold text-[9px] uppercase tracking-widest transition-all duration-300 bg-transparent border border-gray-800 hover:border-gray-400 text-gray-500 hover:text-gray-200"
                   >
-                    - Taruh
+                    Taruh
                   </button>
                 </div>
 
