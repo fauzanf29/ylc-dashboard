@@ -18,31 +18,40 @@ export async function GET(req: Request) {
     const sheets = await initSheets();
     const spreadsheetId = process.env.GOOGLE_SHEETS_ID;
 
-    // AMBIL SEMUA TAB YANG DIBUTUHKAN (Termasuk Log_Inventory)
-    const [salesRes, expenseRes, absensiRes, invLogRes] = await Promise.all([
+    // AMBIL SEMUA TAB YANG DIBUTUHKAN (+ Tambahan Log_Bonus & Log_Dividen)
+    const [salesRes, expenseRes, absensiRes, invLogRes, bonusRes, dividenRes] = await Promise.all([
       sheets.spreadsheets.values.get({ spreadsheetId, range: 'Log_Penjualan!A2:G' }),
       sheets.spreadsheets.values.get({ spreadsheetId, range: 'Log_Pengeluaran!A2:F' }),
       sheets.spreadsheets.values.get({ spreadsheetId, range: 'Absensi!A2:F' }),
-      sheets.spreadsheets.values.get({ spreadsheetId, range: 'Log_Inventory!A2:F' })
+      sheets.spreadsheets.values.get({ spreadsheetId, range: 'Log_Inventory!A2:F' }),
+      sheets.spreadsheets.values.get({ spreadsheetId, range: 'Log_Bonus!A2:E' }).catch(() => ({ data: { values: [] } })),
+      sheets.spreadsheets.values.get({ spreadsheetId, range: 'Log_Dividen!A2:E' }).catch(() => ({ data: { values: [] } }))
     ]);
 
-    const salesRows = salesRes.data.values || [];
-    const expenseRows = expenseRes.data.values || [];
-    const absensiRows = absensiRes.data.values || [];
-    const invLogRows = invLogRes.data.values || [];
+    const salesRows = salesRes.data?.values || [];
+    const expenseRows = expenseRes.data?.values || [];
+    const absensiRows = absensiRes.data?.values || [];
+    const invLogRows = invLogRes.data?.values || [];
+    const bonusRows = bonusRes.data?.values || [];
+    const dividenRows = dividenRes.data?.values || [];
 
     // --- 1. HITUNG KAS GLOBAL ---
-    let globalBruto = 0;
-    salesRows.forEach(row => globalBruto += (parseInt(row[5]?.toString().replace(/[^0-9]/g, "")) || 0));
-    let globalExpense = 0;
-    expenseRows.forEach(row => globalExpense += (parseInt(row[5]?.toString().replace(/[^0-9]/g, "")) || 0));
+    let globalBruto = 0, globalExpense = 0, globalBonus = 0, globalDividen = 0;
     
-    const totalKasGlobal = (globalBruto * 0.8) - globalExpense;
+    salesRows.forEach(row => globalBruto += (parseInt(row[5]?.toString().replace(/[^0-9]/g, "")) || 0));
+    expenseRows.forEach(row => globalExpense += (parseInt(row[5]?.toString().replace(/[^0-9]/g, "")) || 0));
+    bonusRows.forEach(row => globalBonus += (parseInt(row[4]?.toString().replace(/[^0-9]/g, "")) || 0));
+    dividenRows.forEach(row => globalDividen += (parseInt(row[4]?.toString().replace(/[^0-9]/g, "")) || 0));
+    
+    // Total Kas sekarang dikurangi juga sama uang Bonus & Dividen yang udah ditarik
+    const totalKasGlobal = (globalBruto * 0.8) - globalExpense - globalBonus - globalDividen;
 
     // --- 2. INITIALIZE DATA MINGGUAN ---
     let weekBruto = 0;
     let weekModal = 0;
     let weekExpense = 0;
+    let weekBonus = 0;
+    let weekDividen = 0;
     const staffStats: any = {};
     const itemSalesStats: any = {};
     const expensesList: any[] = [];
@@ -86,7 +95,6 @@ export async function GET(req: Request) {
     invLogRows.forEach(row => {
       try {
         const timeStrRaw = row[0] || "";
-        // JURUS PENERJEMAH TANGGAL: Cari angka DD/MM/YYYY dari string
         const dateMatch = timeStrRaw.match(/(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/);
         
         let rowWeek = "";
@@ -96,8 +104,8 @@ export async function GET(req: Request) {
           const month = dateMatch[2];
           const year = dateMatch[3];
           
-          // Bikin format YYYY-MM-DD biar mesin bule ngerti
           const actionTime = new Date(`${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}T00:00:00+07:00`);
+          // Note: Patokan epoch Inventory di sini pakai 24 Jan. Jika ingin disamakan dengan operasional club (23 Jan), bisa diubah di sini nanti.
           const epoch = new Date('2026-01-24T00:00:00+07:00').getTime();
           const diffInDays = Math.floor((actionTime.getTime() - epoch) / (1000 * 60 * 60 * 24));
           rowWeek = `Minggu ${Math.floor(diffInDays / 7) + 1}`;
@@ -107,7 +115,7 @@ export async function GET(req: Request) {
           const time = row[0];
           const name = row[1];
           const item = row[2];
-          const action = row[3]?.toUpperCase(); // AMBIL atau TARUH
+          const action = row[3]?.toUpperCase(); 
           const qty = parseInt(row[4]) || 0;
 
           if (!staffStats[name]) staffStats[name] = { name, totalSales: 0, totalHours: 0, historyAmbil: [], historyTaruh: [], historySales: [] };
@@ -119,7 +127,6 @@ export async function GET(req: Request) {
           }
         }
       } catch (e) {
-        // Skip baris yang kosong atau error
       }
     });
 
@@ -132,14 +139,32 @@ export async function GET(req: Request) {
       }
     });
 
+    // --- 6. PROSES BONUS & DIVIDEN ---
+    bonusRows.forEach(row => {
+      if (row[1] === targetWeek) weekBonus += (parseInt(row[4]?.toString().replace(/[^0-9]/g, "")) || 0);
+    });
+    
+    dividenRows.forEach(row => {
+      if (row[1] === targetWeek) weekDividen += (parseInt(row[4]?.toString().replace(/[^0-9]/g, "")) || 0);
+    });
+
+    // HITUNGAN FINAL
     const setoran20 = weekBruto * 0.2; 
-    const netProfit = (weekBruto * 0.8) - weekExpense;
+    const netProfit = (weekBruto * 0.8) - weekExpense - weekBonus - weekDividen;
 
     return NextResponse.json({
       totalSalesGlobal: weekBruto,
       totalExpenseGlobal: weekExpense,
       totalKasGlobal: totalKasGlobal,
-      finance: { bruto: weekBruto, modal: weekModal, expense: weekExpense, setoran: setoran20, net: netProfit },
+      finance: { 
+        bruto: weekBruto, 
+        modal: weekModal, 
+        expense: weekExpense, 
+        bonus: weekBonus,     // <--- Datanya dikirim ke frontend & webhook
+        dividen: weekDividen, // <--- Datanya dikirim ke frontend & webhook
+        setoran: setoran20, 
+        net: netProfit 
+      },
       leaderboard: Object.values(staffStats).sort((a: any, b: any) => b.totalSales - a.totalSales),
       itemSales: Object.values(itemSalesStats).sort((a: any, b: any) => b.qty - a.qty),
       expensesList: expensesList.reverse()

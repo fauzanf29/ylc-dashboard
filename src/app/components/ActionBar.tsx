@@ -62,7 +62,6 @@ export default function ActionBar(props: any) {
             </button>
 
             {/* 🔥 TOMBOL EMAS DIVIDEN 🔥 */}
-            {/* 🔥 TOMBOL EMAS DIVIDEN 🔥 */}
             <button 
               onClick={props.openDividen} 
               className="bg-yellow-900/40 border border-yellow-500/50 text-yellow-500 hover:bg-yellow-500 hover:text-white px-6 py-3.5 rounded-xl font-black text-[10px] uppercase tracking-[0.2em] transition-all shadow-[0_0_15px_rgba(234,179,8,0.2)] hover:shadow-[0_0_25px_rgba(234,179,8,0.6)] flex items-center gap-2 relative overflow-hidden group"
@@ -83,6 +82,14 @@ export default function ActionBar(props: any) {
             </button>
           </>
         )}
+
+        {/* 🥈 TOMBOL SILVER BONUS */}
+            <button 
+              onClick={props.openBonus} 
+              className="bg-gray-400/10 border border-gray-400/30 text-gray-300 hover:bg-gray-400/20 px-5 py-3.5 rounded-xl font-bold text-[10px] uppercase tracking-widest transition-all flex items-center gap-2"
+            >
+              <span className="text-sm">🥈</span> Bonus
+            </button>
 
       </div>
     </div>

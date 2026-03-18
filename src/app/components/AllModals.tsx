@@ -147,6 +147,45 @@ export default function AllModals(props: any) {
           </div>
         </div>
       )}
+
+      {/* ========================================== */}
+      {/* 🥈 MODAL BONUS KARYAWAN */}
+      {/* ========================================== */}
+      {props.isBonusModalOpen && (
+        <div className="fixed inset-0 bg-black/90 backdrop-blur-md flex items-center justify-center z-[110] p-4">
+          <div className="bg-[#0a0a0a] border border-gray-400/30 rounded-3xl p-8 w-full max-w-md shadow-[0_0_30px_rgba(255,255,255,0.05)] relative overflow-hidden">
+            
+            <div className="text-center mb-6">
+              <span className="text-4xl drop-shadow-[0_0_15px_rgba(255,255,255,0.3)]">🥈</span>
+              <h2 className="text-2xl font-black italic mt-2 uppercase text-gray-200 tracking-wider">Kirim Bonus</h2>
+              <p className="text-[9px] text-gray-500 uppercase tracking-widest mt-1">Apresiasi Performa Staff YLC</p>
+            </div>
+
+            <div className="space-y-4 mb-8 relative z-10">
+              {/* Dropdown Nama Staff otomatis dari Leaderboard */}
+              <select value={props.bonusData.staffName} onChange={(e) => props.setBonusData({...props.bonusData, staffName: e.target.value})} className="bg-[#111] border border-gray-800 rounded-xl p-3.5 w-full font-bold text-sm outline-none focus:border-gray-500/50 text-gray-300">
+                <option value="">Pilih Nama Staff</option>
+                {props.mgmtStats?.leaderboard?.map((s: any, i: number) => <option key={i} value={s.name}>{s.name}</option>)}
+              </select>
+              
+              <input type="text" placeholder="Alasan Bonus (Contoh: Penjualan Terbanyak)" value={props.bonusData.keterangan} onChange={(e) => props.setBonusData({...props.bonusData, keterangan: e.target.value})} className="bg-[#111] border border-gray-800 rounded-xl p-3.5 w-full font-bold text-sm outline-none focus:border-gray-500/50 transition-colors text-gray-200" />
+              
+              <div className="relative">
+                <span className="absolute left-4 top-1/2 -translate-y-1/2 font-black text-gray-600">$</span>
+                <input type="number" placeholder="Nominal Bonus ($)" value={props.bonusData.jumlah || ''} onChange={(e) => props.setBonusData({...props.bonusData, jumlah: parseInt(e.target.value) || 0})} className="bg-[#111] border border-gray-800 rounded-xl p-3.5 pl-9 w-full text-2xl font-black outline-none focus:border-gray-500/50 transition-colors text-white" />
+              </div>
+            </div>
+
+            <div className="flex gap-4 relative z-10">
+              <button onClick={() => props.setIsBonusModalOpen(false)} className="flex-1 bg-[#111] hover:bg-gray-800 border border-gray-800 py-4 rounded-xl font-bold text-[10px] uppercase tracking-widest transition-colors text-gray-400">Batal</button>
+              <button onClick={props.submitBonus} disabled={props.isBonusSubmitting} className="flex-1 bg-gray-200 hover:bg-white text-black py-4 rounded-xl font-black text-[10px] uppercase tracking-[0.2em] shadow-[0_0_20px_rgba(255,255,255,0.2)] transition-all disabled:opacity-50">
+                {props.isBonusSubmitting ? 'Mengirim...' : 'Kirim Bonus'}
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
     </>
   );
 }

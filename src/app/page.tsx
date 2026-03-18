@@ -72,10 +72,13 @@ const [selectedWeek, setSelectedWeek] = useState(() => {
   const [isExpenseSubmitting, setIsExpenseSubmitting] = useState(false);
   const [isSendingWebhook, setIsSendingWebhook] = useState(false);
 
-  // 💰 STATE KHUSUS DIVIDEN
   const [isDividenModalOpen, setIsDividenModalOpen] = useState(false);
   const [dividenData, setDividenData] = useState({ keterangan: 'Bagi Hasil Management', jumlah: 0 });
   const [isDividenSubmitting, setIsDividenSubmitting] = useState(false);
+
+  const [isBonusModalOpen, setIsBonusModalOpen] = useState(false);
+  const [bonusData, setBonusData] = useState({ staffName: '', keterangan: 'Bonus Performa', jumlah: 0 });
+  const [isBonusSubmitting, setIsBonusSubmitting] = useState(false);
 
   const userRole = (session?.user as any)?.role || 'unauthorized'; 
   const userNamaRP = (session?.user as any)?.namaRP || 'Unknown Personnel';
@@ -143,8 +146,26 @@ const [selectedWeek, setSelectedWeek] = useState(() => {
   };
 
   const sendWebhookReport = async () => {
-    if (!mgmtStats || isSendingWebhook || !confirm(`Kirim rekap ke Discord?`)) return; setIsSendingWebhook(true);
-    try { await fetch('/api/management/webhook', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ week: selectedWeek, stats: mgmtStats, sender: userNamaRP }) }); alert("Laporan terkirim!"); } catch (e) {} finally { setIsSendingWebhook(false); }
+    if (!mgmtStats || isSendingWebhook || !confirm(`Kirim rekap ke Discord?`)) return; 
+    setIsSendingWebhook(true);
+    try { 
+      await fetch('/api/management/webhook', { 
+        method: 'POST', 
+        headers: { 'Content-Type': 'application/json' }, 
+        // 👇 Ini dia tambahannya: inventory ikut dikirim 👇
+        body: JSON.stringify({ 
+          week: selectedWeek, 
+          stats: mgmtStats, 
+          sender: userNamaRP,
+          inventory: inventory 
+        }) 
+      }); 
+      alert("🚀 Laporan VVIP berhasil mendarat di Discord!"); 
+    } catch (e) {
+      console.error(e);
+    } finally { 
+      setIsSendingWebhook(false); 
+    }
   };
 
   // 💰 FUNGSI EKSEKUSI DIVIDEN
@@ -164,6 +185,25 @@ const [selectedWeek, setSelectedWeek] = useState(() => {
         alert("💰 Dividen berhasil diamankan!");
       } 
     } catch (e) {} finally { setIsDividenSubmitting(false); }
+  };
+
+  //Submit Bonus
+  const submitBonus = async () => {
+    if (isBonusSubmitting || bonusData.jumlah <= 0 || !bonusData.staffName) return; 
+    setIsBonusSubmitting(true);
+    try { 
+      const res = await fetch('/api/management/bonus', { 
+        method: 'POST', 
+        headers: { 'Content-Type': 'application/json' }, 
+        body: JSON.stringify({ ...bonusData, pic: userNamaRP, minggu: selectedWeek }) 
+      }); 
+      if (res.ok) { 
+        setIsBonusModalOpen(false); 
+        setBonusData({ staffName: '', keterangan: 'Bonus Performa', jumlah: 0 }); 
+        fetchMgmtStats(); 
+        alert("🥈 Bonus berhasil dikirim ke staf!");
+      } 
+    } catch (e) {} finally { setIsBonusSubmitting(false); }
   };
 
   // Effects
@@ -196,7 +236,8 @@ const [selectedWeek, setSelectedWeek] = useState(() => {
             sendReport={sendWebhookReport} 
             isSending={isSendingWebhook} 
             openReimburse={() => setIsReimburseModalOpen(true)} 
-            openDividen={() => setIsDividenModalOpen(true)} // <-- MENGIRIM PERINTAH BUKA DIVIDEN
+            openDividen={() => setIsDividenModalOpen(true)}
+            openBonus={() => setIsBonusModalOpen(true)}
             time={formatTime(seconds)} 
         />
 
@@ -282,6 +323,14 @@ const [selectedWeek, setSelectedWeek] = useState(() => {
           submitDividen={submitDividen}
           isDividenSubmitting={isDividenSubmitting}
           mgmtStats={mgmtStats}
+
+          //PROP BONUS
+          isBonusModalOpen={isBonusModalOpen}
+          setIsBonusModalOpen={setIsBonusModalOpen}
+          bonusData={bonusData}
+          setBonusData={setBonusData}
+          submitBonus={submitBonus}
+          isBonusSubmitting={isBonusSubmitting}
       />
       
     </div>
