@@ -16,7 +16,6 @@ async function getGsheetUser(discordId: string) {
     });
 
     const rows = res.data.values || [];
-    // Cari baris yang kolom A (index 0) cocok dengan Discord ID
     const userRow = rows.find(row => row[0] === discordId);
     
     if (userRow) {
@@ -37,23 +36,33 @@ const handler = NextAuth({
     }),
   ],
   callbacks: {
-    async session({ session, token }) {
-      if (session.user && token.sub) {
-        // Cek ke Gsheet berdasarkan Discord ID (token.sub)
+    // 1. JWT Callback: HANYA JALAN SEKALI SAAT LOGIN PERTAMA KALI
+    async jwt({ token, account, profile }) {
+      // Jika account ada, berarti user baru saja login
+      if (account && token.sub) {
         const gsheetData = await getGsheetUser(token.sub);
-        
         if (gsheetData) {
-          (session.user as any).namaRP = gsheetData.namaRP;
-          (session.user as any).role = gsheetData.role;
+          token.namaRP = gsheetData.namaRP;
+          token.role = gsheetData.role;
         } else {
-          // Jika tidak ada di Gsheet, tandai sebagai intruder
-          (session.user as any).role = 'unauthorized';
+          token.role = 'unauthorized';
         }
+      }
+      return token;
+    },
+    // 2. SESSION Callback: Cuma baca dari KTP (token), TIDAK NEMBAK GSHEET LAGI
+    async session({ session, token }) {
+      if (session.user) {
+        (session.user as any).namaRP = token.namaRP;
+        (session.user as any).role = token.role;
       }
       return session;
     },
   },
   secret: process.env.NEXTAUTH_SECRET,
+  session: {
+    strategy: "jwt", // Wajib pakai JWT agar tokennya tersimpan
+  }
 });
 
 export { handler as GET, handler as POST };
